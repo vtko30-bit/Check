@@ -26,7 +26,7 @@ export default async function Dashboard() {
         <h1 className="text-2xl font-bold">Mis Tareas</h1>
         <div className="flex items-center gap-2">
             <SendReportButton />
-            <TaskFormDialog users={users} currentUser={currentUser} />
+            <TaskFormDialog users={users} currentUser={currentUser as any} />
         </div>
       </div>
 
@@ -45,7 +45,7 @@ export default async function Dashboard() {
         </div>
       )}
 
-      <TaskTable tasks={tasks} users={users} currentUser={currentUser} />
+      <TaskTable tasks={tasks} users={users} currentUser={currentUser as any} />
     </div>
   );
 }
