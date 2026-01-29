@@ -177,10 +177,11 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
+      {/* --- AQUÍ ESTÁ LA CORRECCIÓN DE LA BARRA DE FILTROS --- */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
         {/* Filtro de Estado */}
-        <div className="flex items-center gap-2 text-sm bg-white p-2 rounded-lg border w-fit shadow-sm">
-          <span className="text-slate-500 ml-2 font-medium">Ver:</span>
+        <div className="flex items-center gap-2 text-sm bg-white p-2 rounded-lg border shadow-sm max-w-full overflow-x-auto scrollbar-hide">
+          <span className="text-slate-500 ml-2 font-medium whitespace-nowrap">Ver:</span>
           <div className="flex bg-slate-100 p-1 rounded-md">
             {(["all", "pending", "completed", "archived"] as const).map((opt) => {
               const count = opt === "archived" 
@@ -196,7 +197,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                   key={opt}
                   onClick={() => setFilter(opt)}
                   className={cn(
-                    "px-4 py-1 rounded-sm transition-all text-xs flex items-center gap-1.5",
+                    "px-4 py-1 rounded-sm transition-all text-xs flex items-center gap-1.5 whitespace-nowrap",
                     filter === opt
                       ? "bg-white shadow-sm text-primary font-bold"
                       : "text-slate-500 hover:text-slate-700",
@@ -222,15 +223,15 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
         </div>
 
         {/* Agrupador */}
-        <div className="flex items-center gap-2 text-sm bg-white p-2 rounded-lg border w-fit shadow-sm">
-          <span className="text-slate-500 ml-2 font-medium">Agrupar:</span>
+        <div className="flex items-center gap-2 text-sm bg-white p-2 rounded-lg border shadow-sm max-w-full overflow-x-auto scrollbar-hide">
+          <span className="text-slate-500 ml-2 font-medium whitespace-nowrap">Agrupar:</span>
           <div className="flex bg-slate-100 p-1 rounded-md">
             {(["none", "status", "user"] as const).map((opt) => (
               <button
                 key={opt}
                 onClick={() => setGrouping(opt)}
                 className={cn(
-                  "px-4 py-1 rounded-sm transition-all text-xs",
+                  "px-4 py-1 rounded-sm transition-all text-xs whitespace-nowrap",
                   grouping === opt
                     ? "bg-white shadow-sm text-primary font-bold"
                     : "text-slate-500 hover:text-slate-700",
@@ -248,24 +249,24 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
 
         {/* Acciones por lotes */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200 overflow-x-auto max-w-full pb-1">
             <button
               onClick={handleBulkArchive}
-              className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+              className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 whitespace-nowrap"
             >
               <Archive className="w-3.5 h-3.5" />
               Archivar ({selectedIds.size})
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200 whitespace-nowrap"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Eliminar ({selectedIds.size})
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2"
+              className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 whitespace-nowrap"
             >
               Cancelar
             </button>
@@ -290,8 +291,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
               {group.tasks.map((task) => {
                 const assignee = getAssignedUser(task.assignedUserId);
                 const isOverdue = validDate(task.deadline) && 
-                                 new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
-                                 task.status !== 'completed';
+                                  new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
+                                  task.status !== 'completed';
                 const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
                 const isPriority = task.priority === 'urgent';
                 
@@ -306,7 +307,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                     isPriority ? "bg-red-50/30" : isOverdue ? "bg-amber-50/30" : ""
                   )}>
                     <div className="flex items-start justify-between gap-2">
-                       <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex flex-col gap-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 
                               className="font-bold text-slate-900 leading-tight cursor-pointer"
@@ -332,9 +333,9 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                               </div>
                             )}
                           </div>
-                       </div>
-                       
-                       <Badge
+                        </div>
+                        
+                        <Badge
                           variant={
                             task.status === "completed"
                               ? "success"
@@ -351,17 +352,17 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
 
                     {/* Progress Bar Mini */}
                     <div className="space-y-1">
-                       <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                           <div 
                             className={cn("h-full transition-all", progress === 100 ? "bg-green-500" : "bg-primary")}
                             style={{ width: `${progress}%` }}
                           />
-                       </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex items-center gap-1">
-                         <TaskFormDialog 
+                          <TaskFormDialog 
                             users={users} 
                             task={task} 
                             currentUser={currentUser}
@@ -384,7 +385,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                         <button
+                          <button
                             onClick={() => toggleTaskPin(task.id, !task.isPinned)}
                             className={cn("p-2 rounded-full", task.isPinned ? "text-yellow-600 bg-yellow-50" : "text-slate-300")}
                           >

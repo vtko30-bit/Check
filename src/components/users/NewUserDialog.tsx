@@ -36,7 +36,7 @@ export function NewUserDialog() {
           <Plus className="w-4 h-4" /> Nuevo Usuario
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] bg-white dark:bg-slate-950">
         <DialogHeader>
           <DialogTitle>Agregar Usuario</DialogTitle>
         </DialogHeader>
