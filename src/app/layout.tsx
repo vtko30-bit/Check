@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { getBranding } from "@/actions/branding";
 import { Inter, Caveat } from "next/font/google";
 // 1. IMPORTAMOS EL PROVEEDOR (Asegúrate de haber creado este archivo antes)
-import { ThemeProvider } from "@/components/theme-provider"; 
+import { ThemeProvider } from "@/components/NextThemeProvider"; 
 
 const inter = Inter({ subsets: ["latin"] });
 const caveat = Caveat({ 
