@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Task, User } from "@/types";
 import { formatDate } from "@/lib/date";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   updateTaskStatus,
@@ -32,7 +31,7 @@ import {
 import { TaskDetailModal } from "./TaskDetailModal";
 import { TaskFormDialog } from "./TaskFormDialog";
 import { launchFloatingNote } from "@/lib/floating-note";
-import { TaskBoard } from "./TaskBoard"; // <--- IMPORTACIÓN CORREGIDA
+import { TaskBoard } from "./TaskBoard";
 
 const frequencyLabels: Record<string, string> = {
   one_time: "Una vez",
@@ -48,6 +47,8 @@ interface TaskTableProps {
   currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
 }
 
+// Ya no necesitamos etiquetas de texto para el estado, usaremos el check visual
+// pero mantenemos el mapeo por si queremos usarlo en tooltips
 const statusLabels: Record<string, string> = {
   pending: "Pendiente",
   in_progress: "En Progreso",
@@ -64,7 +65,7 @@ function validDate(str: string) {
 
 export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("active");
-  const [layout, setLayout] = useState<"list" | "board">("list"); // <--- NUEVO ESTADO PARA EL TABLERO
+  const [layout, setLayout] = useState<"list" | "board">("list");
   const [grouping, setGrouping] = useState<GroupingType>("none");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -270,7 +271,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
           </div>
         )}
 
-        {/* --- BOTONES DE AGRUPAR Y CAMBIO DE VISTA --- */}
         <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm max-w-full overflow-x-auto scrollbar-hide flex-1">
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
             {(["none", "status", "user"] as const).map((opt) => (
@@ -289,10 +289,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
             ))}
           </div>
 
-          {/* SEPARADOR VERTICAL */}
           <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
 
-          {/* BOTONES LISTA VS TABLERO */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
             <button
                 onClick={() => setLayout("list")}
@@ -350,7 +348,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
         )}
       </div>
 
-      {/* --- RENDERIZADO CONDICIONAL (LISTA O TABLERO) --- */}
+      {/* --- RENDERIZADO CONDICIONAL --- */}
       {layout === "board" && viewMode === "active" ? (
          <div className="animate-in fade-in duration-300">
             <TaskBoard tasks={filteredTasks} users={users} currentUser={currentUser} />
@@ -433,19 +431,25 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </div>
                             </div>
                             
-                            <Badge
-                            variant={
-                                task.status === "completed"
-                                ? "success"
-                                : task.status === "in_progress"
-                                    ? "secondary"
-                                    : "default"
-                            }
-                            className="text-[10px] scale-90 origin-top-right whitespace-nowrap"
-                            onClick={() => toggleStatus(task)}
+                            {/* --- CHECKBOX DE ESTADO (MÓVIL) --- */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleStatus(task);
+                                }}
+                                className={cn(
+                                    "flex items-center justify-center w-8 h-8 rounded-lg transition-all",
+                                    task.status === "completed"
+                                    ? "bg-green-100 text-green-600 hover:bg-green-200"
+                                    : "bg-slate-100 text-slate-300 hover:text-slate-500 hover:bg-slate-200"
+                                )}
                             >
-                            {statusLabels[task.status]}
-                            </Badge>
+                                {task.status === "completed" ? (
+                                    <CheckSquare className="w-5 h-5" />
+                                ) : (
+                                    <Square className="w-5 h-5" />
+                                )}
+                            </button>
                         </div>
 
                         {/* Progress Bar Mini */}
@@ -677,21 +681,27 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 )}
                             </div>
                             </td>
+                            
+                            {/* --- CHECKBOX DE ESTADO (DESKTOP) --- */}
                             <td className="px-4 md:px-6 py-1.5">
-                            <Badge
-                                variant={
-                                task.status === "completed"
-                                    ? "success"
-                                    : task.status === "in_progress"
-                                    ? "secondary"
-                                    : "default"
-                                }
-                                className="cursor-pointer whitespace-nowrap"
-                                onClick={() => toggleStatus(task)}
-                            >
-                                {statusLabels[task.status] || task.status}
-                            </Badge>
+                                <button
+                                    onClick={() => toggleStatus(task)}
+                                    className={cn(
+                                        "flex items-center gap-2 px-2 py-1.5 rounded-md border transition-all text-xs font-medium w-full max-w-[120px]",
+                                        task.status === "completed"
+                                        ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    )}
+                                >
+                                    {task.status === "completed" ? (
+                                        <CheckSquare className="w-4 h-4 text-green-600" />
+                                    ) : (
+                                        <Square className="w-4 h-4 text-slate-400" />
+                                    )}
+                                    <span>{statusLabels[task.status]}</span>
+                                </button>
                             </td>
+
                             <td className="px-4 md:px-6 py-4 space-x-2">
                             <div className="flex items-center gap-2">
                                 <input
