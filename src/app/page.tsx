@@ -5,7 +5,6 @@ import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { SendReportButton } from '@/components/SendReportButton';
 import { StickyNote } from '@/components/tasks/StickyNote';
 import { auth } from '@/auth';
-import { ModeToggle } from "@/components/ModeToggleBtn";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +23,10 @@ export default async function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto pb-20 px-4 md:px-0">
       <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-4">
-        <h1 className="text-xl md:text-2xl font-bold dark:text-white">Mis Tareas</h1>
+        <h1 className="text-xl md:text-2xl font-bold">Mis Tareas</h1>
         
-        {/* 2. Aquí agrupamos los botones de acción */}
+        {/* Botones de acción (Ya sin el botón de modo oscuro) */}
         <div className="flex items-center gap-2">
-            <ModeToggle /> {/* <-- Aquí está tu botón de Sol/Luna */}
             <SendReportButton />
             <TaskFormDialog users={users} currentUser={currentUser} />
         </div>
@@ -37,7 +35,7 @@ export default async function Dashboard() {
       {/* Sticky Board Section */}
       {pinnedTasks.length > 0 && (
         <div className="mb-12">
-          <h2 className="text-lg font-medium text-slate-500 dark:text-slate-400 mb-6 flex items-center gap-2">
+          <h2 className="text-lg font-medium text-slate-500 mb-6 flex items-center gap-2">
             <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
             Tablero de Notas (Post-its)
           </h2>
