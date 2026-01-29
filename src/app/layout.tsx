@@ -6,7 +6,6 @@ import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { getBranding } from "@/actions/branding";
 import { Inter, Caveat } from "next/font/google";
-// 1. IMPORTAMOS EL PROVEEDOR (Asegúrate de haber creado este archivo antes)
 import { ThemeProvider } from "@/components/NextThemeProvider"; 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -34,19 +33,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const companyLogo = await getBranding();
 
   return (
-    // 2. AGREGAMOS suppressHydrationWarning AQUÍ
     <html lang="es" suppressHydrationWarning>
       <body className={cn(
-        // 3. AGREGAMOS dark:bg-slate-950 PARA QUE EL FONDO CAMBIE
-        "antialiased flex flex-col md:flex-row min-h-screen bg-slate-50/50 dark:bg-slate-950 text-foreground",
+        "antialiased flex flex-col md:flex-row min-h-screen bg-slate-50/50 text-foreground",
         inter.className,
         caveat.variable
       )}>
-        {/* 4. ENVOLVEMOS TODO EL CONTENIDO INTERNO CON EL THEMEPROVIDER */}
         <ThemeProvider
             attribute="class"
-            defaultTheme="system"
-            enableSystem
+            defaultTheme="light"
+            forcedTheme="light"
+            enableSystem={false}
             disableTransitionOnChange
         >
             {isLoggedIn && <MobileNav user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />}
