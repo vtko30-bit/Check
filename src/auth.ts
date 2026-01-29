@@ -1,3 +1,4 @@
+import type { User } from 'next-auth';
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { authConfig } from './auth.config';
@@ -30,7 +31,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           if (!user) return null;
           
           const passwordsMatch = await bcrypt.compare(password, user.password);
-          if (passwordsMatch) return user;
+          
+          // AQUÍ ESTÁ EL ARREGLO:
+          if (passwordsMatch) return user as User;
         }
         
         console.log('Invalid credentials');
