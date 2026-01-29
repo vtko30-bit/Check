@@ -5,7 +5,7 @@ import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { SendReportButton } from '@/components/SendReportButton';
 import { StickyNote } from '@/components/tasks/StickyNote';
 import { auth } from '@/auth';
-import { ModeToggle } from "@/components/ThemeToggle";
+import { ModeToggle } from "@/components/ModeToggleBtn";
 
 export const dynamic = 'force-dynamic';
 
