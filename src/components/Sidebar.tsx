@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Calendar, Users, LogOut, Settings } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react'; // <--- Agregamos CheckSquare
 import { handleSignOut } from '@/actions/auth';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -24,10 +24,14 @@ export function Sidebar({ user, companyLogo }: {
   return (
     <div className="w-64 border-r bg-slate-50 h-screen sticky top-0 flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        
+        {/* --- NUEVA CABECERA CON EL NOMBRE 'CHECK' --- */}
         <div className="mb-6 px-2 flex items-center justify-between">
-          <div className="font-bold text-xl flex items-center gap-2">
-            <span className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">T</span>
-            TaskPro
+          <div className="flex items-center gap-2">
+            <div className="bg-primary/10 p-1.5 rounded-lg">
+               <CheckSquare className="w-6 h-6 text-primary" />
+            </div>
+            <span className="font-bold text-xl tracking-tight text-slate-800">Check</span>
           </div>
           <NotificationCenter userId={user.id} align="left" />
         </div>

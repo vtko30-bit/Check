@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare } from 'lucide-react'; // <--- Agregamos CheckSquare
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { handleSignOut } from '@/actions/auth';
@@ -26,10 +26,14 @@ export function MobileNav({ user, companyLogo }: {
   ];
 
   return (
-    <div className="md:hidden border-b bg-white p-4 flex items-center justify-between">
+    <div className="md:hidden border-b bg-white p-4 flex items-center justify-between sticky top-0 z-40">
+      
+      {/* --- LOGO EN BARRA CERRADA --- */}
       <div className="font-bold text-lg flex items-center gap-2">
-        <span className="w-6 h-6 bg-primary rounded flex items-center justify-center text-white text-xs text-center leading-none">T</span>
-        TaskPro
+        <div className="bg-primary/10 p-1 rounded-md">
+           <CheckSquare className="w-5 h-5 text-primary" />
+        </div>
+        <span className="text-slate-800">Check</span>
       </div>
       
       <div className="flex items-center gap-1">
@@ -47,10 +51,15 @@ export function MobileNav({ user, companyLogo }: {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
+              
+              {/* --- LOGO EN MENÚ ABIERTO --- */}
               <div className="font-bold text-xl flex items-center gap-2">
-                <span className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">T</span>
-                TaskPro
+                <div className="bg-primary/10 p-1.5 rounded-lg">
+                   <CheckSquare className="w-6 h-6 text-primary" />
+                </div>
+                <span className="text-slate-800">Check</span>
               </div>
+
               <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
                 <X className="w-5 h-5" />
               </Button>
@@ -101,7 +110,7 @@ export function MobileNav({ user, companyLogo }: {
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100">
-               <button
+                <button
                   onClick={() => handleSignOut()}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-sm font-bold text-red-600 hover:bg-red-50 w-full"
                 >
