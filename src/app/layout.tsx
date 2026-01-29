@@ -6,6 +6,8 @@ import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { getBranding } from "@/actions/branding";
 import { Inter, Caveat } from "next/font/google";
+// 1. IMPORTAMOS EL PROVEEDOR (Asegúrate de haber creado este archivo antes)
+import { ThemeProvider } from "@/components/theme-provider"; 
 
 const inter = Inter({ subsets: ["latin"] });
 const caveat = Caveat({ 
@@ -32,21 +34,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const companyLogo = await getBranding();
 
   return (
-    <html lang="es">
+    // 2. AGREGAMOS suppressHydrationWarning AQUÍ
+    <html lang="es" suppressHydrationWarning>
       <body className={cn(
-        "antialiased flex flex-col md:flex-row min-h-screen bg-slate-50/50 text-foreground",
+        // 3. AGREGAMOS dark:bg-slate-950 PARA QUE EL FONDO CAMBIE
+        "antialiased flex flex-col md:flex-row min-h-screen bg-slate-50/50 dark:bg-slate-950 text-foreground",
         inter.className,
         caveat.variable
       )}>
-        {isLoggedIn && <MobileNav user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />}
-        {isLoggedIn && (
-          <div className="hidden md:flex">
-            <Sidebar user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />
-          </div>
-        )}
-        <main className={cn("flex-1 p-4 md:p-8 overflow-auto w-full", !isLoggedIn && "flex items-center justify-center")}>
-          {children}
-        </main>
+        {/* 4. ENVOLVEMOS TODO EL CONTENIDO INTERNO CON EL THEMEPROVIDER */}
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
+            {isLoggedIn && <MobileNav user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />}
+            {isLoggedIn && (
+              <div className="hidden md:flex">
+                <Sidebar user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />
+              </div>
+            )}
+            <main className={cn("flex-1 p-4 md:p-8 overflow-auto w-full", !isLoggedIn && "flex items-center justify-center")}>
+              {children}
+            </main>
+        </ThemeProvider>
       </body>
     </html>
   );
