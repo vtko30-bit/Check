@@ -53,32 +53,27 @@ const statusLabels: Record<string, string> = {
 };
 
 type GroupingType = "none" | "status" | "user";
-// Eliminamos "archived" de aquí porque ahora es una vista separada
 type FilterType = "all" | "pending" | "completed"; 
-type ViewMode = "active" | "archived"; // Nuevo estado para las pestañas
+type ViewMode = "active" | "archived";
 
 function validDate(str: string) {
   return !Number.isNaN(new Date(str).getTime());
 }
 
 export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("active"); // Controla la pestaña
+  const [viewMode, setViewMode] = useState<ViewMode>("active");
   const [grouping, setGrouping] = useState<GroupingType>("none");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Lógica de filtrado actualizada
   const filteredTasks = useMemo(() => {
-    // 1. Primero separamos por pestaña (Activas vs Archivadas)
     let result = viewMode === "archived" 
       ? tasks.filter((t) => t.isArchived)
       : tasks.filter((t) => !t.isArchived);
 
-    // 2. Si estamos en "Archivo", generalmente no filtramos por estado, devolvemos todo lo archivado
     if (viewMode === "archived") return result;
 
-    // 3. Si estamos en "Activas", aplicamos los filtros de estado
     if (filter === "all") return result;
     
     return result.filter((task) => {
@@ -183,12 +178,12 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
   return (
     <div className="space-y-4">
       
-      {/* --- PESTAÑAS PRINCIPALES (NUEVO) --- */}
+      {/* --- PESTAÑAS PRINCIPALES --- */}
       <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-800 mb-6">
         <button
           onClick={() => {
             setViewMode("active");
-            setSelectedIds(new Set()); // Limpiar selección al cambiar de pestaña
+            setSelectedIds(new Set());
           }}
           className={cn(
             "pb-3 text-sm font-medium flex items-center gap-2 transition-all relative",
@@ -199,7 +194,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
         >
           <LayoutList className="w-4 h-4" />
           Activas
-          {/* Indicador de activo */}
           {viewMode === "active" && (
             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
           )}
@@ -218,11 +212,10 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
           )}
         >
           <Archive className="w-4 h-4" />
-          Archivo
+          Archivado {/* <--- CAMBIO AQUÍ */}
           <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full text-slate-500">
             {tasks.filter(t => t.isArchived).length}
           </span>
-           {/* Indicador de activo */}
            {viewMode === "archived" && (
             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
           )}
@@ -233,7 +226,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
       {/* --- BARRA DE HERRAMIENTAS --- */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
         
-        {/* Solo mostramos filtros de estado si estamos en la vista de ACTIVAS */}
         {viewMode === "active" && (
           <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm max-w-full overflow-x-auto scrollbar-hide">
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
@@ -275,7 +267,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
           </div>
         )}
 
-        {/* Agrupador (Visible en ambas vistas) */}
         <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm max-w-full overflow-x-auto scrollbar-hide">
           <span className="text-slate-500 ml-2 font-medium whitespace-nowrap hidden sm:inline">Agrupar:</span>
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
@@ -300,10 +291,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
           </div>
         </div>
 
-        {/* Acciones por lotes */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200 overflow-x-auto max-w-full pb-1 ml-auto">
-            {/* Solo mostramos el botón de archivar si NO estamos en la vista de archivados */}
             {viewMode === "active" && (
                 <button
                 onClick={handleBulkArchive}
@@ -348,7 +337,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
                             <Archive className="w-8 h-8 text-slate-300" />
                         </div>
-                        <p>El archivo está vacío</p>
+                        <p>No hay tareas en archivado</p> {/* <--- AJUSTADO AQUÍ TAMBIÉN */}
                      </>
                 )}
             </div>
@@ -444,7 +433,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             }
                           />
                           
-                          {/* Botón de Archivar (Solo visible si no está archivada) */}
                           {!task.isArchived && (
                             <button 
                                 onClick={() => bulkArchiveTasks([task.id])}
