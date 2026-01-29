@@ -21,9 +21,9 @@ export default async function Dashboard() {
   const pinnedTasks = tasks.filter(t => t.isPinned && !t.isArchived);
 
   return (
-    <div className="max-w-6xl mx-auto pb-20">
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-        <h1 className="text-2xl font-bold">Mis Tareas</h1>
+    <div className="max-w-6xl mx-auto pb-20 px-4 md:px-0">
+      <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-4">
+        <h1 className="text-xl md:text-2xl font-bold">Mis Tareas</h1>
         <div className="flex items-center gap-2">
             <SendReportButton />
             <TaskFormDialog users={users} currentUser={currentUser as any} />

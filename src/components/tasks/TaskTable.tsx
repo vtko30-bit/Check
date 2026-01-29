@@ -274,7 +274,142 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
       </div>
 
       <div className="rounded-lg border bg-white overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {groupedTasks.flatMap(group => group.tasks).length === 0 && (
+            <div className="p-8 text-center text-slate-400 italic">No hay tareas pendientes</div>
+          )}
+          {groupedTasks.map((group, groupIdx) => (
+            <React.Fragment key={group.label || groupIdx}>
+              {grouping !== "none" && group.tasks.length > 0 && (
+                <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between border-y">
+                  <span>{group.displayLabel}</span>
+                  <span className="bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.tasks.length}</span>
+                </div>
+              )}
+              {group.tasks.map((task) => {
+                const assignee = getAssignedUser(task.assignedUserId);
+                const isOverdue = validDate(task.deadline) && 
+                                 new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
+                                 task.status !== 'completed';
+                const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
+                const isPriority = task.priority === 'urgent';
+                
+                const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+                const progress = hasSubtasks 
+                  ? Math.round((task.subtasks.filter(st => st.completed).length / task.subtasks.length) * 100)
+                  : (task.status === 'completed' ? 100 : 0);
+
+                return (
+                  <div key={task.id} className={cn(
+                    "p-4 flex flex-col gap-3 active:bg-slate-50 transition-colors",
+                    isPriority ? "bg-red-50/30" : isOverdue ? "bg-amber-50/30" : ""
+                  )}>
+                    <div className="flex items-start justify-between gap-2">
+                       <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 
+                              className="font-bold text-slate-900 leading-tight cursor-pointer"
+                              onClick={() => setSelectedTask(task)}
+                            >
+                              {task.title}
+                            </h3>
+                            {isPriority && (
+                              <span className="text-[8px] bg-red-600 text-white font-black px-1 py-0.5 rounded uppercase">Urgent</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium">
+                            <span className={cn("flex items-center gap-1", isOverdue ? "text-red-600 font-bold" : isUrgent ? "text-amber-600" : "")}>
+                              <CalendarIcon className="w-3 h-3" /> {formatDate(task.deadline)}
+                            </span>
+                            {assignee && (
+                              <div className="flex items-center gap-1">
+                                <Avatar className="h-4 w-4">
+                                  <AvatarImage src={assignee.avatarUrl} />
+                                  <AvatarFallback>{assignee.name.slice(0, 1)}</AvatarFallback>
+                                </Avatar>
+                                <span className="truncate max-w-[80px]">{assignee.name}</span>
+                              </div>
+                            )}
+                          </div>
+                       </div>
+                       
+                       <Badge
+                          variant={
+                            task.status === "completed"
+                              ? "success"
+                              : task.status === "in_progress"
+                                ? "secondary"
+                                : "default"
+                          }
+                          className="text-[10px] scale-90 origin-top-right whitespace-nowrap"
+                          onClick={() => toggleStatus(task)}
+                        >
+                          {statusLabels[task.status]}
+                        </Badge>
+                    </div>
+
+                    {/* Progress Bar Mini */}
+                    <div className="space-y-1">
+                       <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className={cn("h-full transition-all", progress === 100 ? "bg-green-500" : "bg-primary")}
+                            style={{ width: `${progress}%` }}
+                          />
+                       </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-1">
+                         <TaskFormDialog 
+                            users={users} 
+                            task={task} 
+                            currentUser={currentUser}
+                            trigger={
+                              <button className="p-2 text-slate-400 hover:text-primary"><Edit className="w-4 h-4" /></button>
+                            }
+                          />
+                          <button 
+                            onClick={() => bulkArchiveTasks([task.id])}
+                            className="p-2 text-slate-400 hover:text-slate-600"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => deleteTask(task.id)}
+                            className="p-2 text-slate-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                         <button
+                            onClick={() => toggleTaskPin(task.id, !task.isPinned)}
+                            className={cn("p-2 rounded-full", task.isPinned ? "text-yellow-600 bg-yellow-50" : "text-slate-300")}
+                          >
+                            <Pin className={cn("w-4 h-4", task.isPinned && "fill-yellow-600")} />
+                          </button>
+                          <button
+                            onClick={() => {
+                               toggleTaskPin(task.id, true);
+                               launchFloatingNote(task);
+                            }}
+                            className="p-2 text-slate-400"
+                          >
+                            <Monitor className="w-4 h-4" />
+                          </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-left min-w-[600px]">
             <thead className="text-slate-500 border-b bg-slate-50">
               <tr>
