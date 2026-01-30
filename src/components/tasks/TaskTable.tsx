@@ -471,8 +471,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </button>
                         </div>
                         
-                        {/* BOTONES ANTERIORES ELIMINADOS AQUÍ */}
-
                         </div>
                     </div>
                     );
