@@ -706,8 +706,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                 </tbody>
             </table>
             </div>
-      </div> {/* AQUI ESTABA EL ERROR: Faltaba cerrar el paréntesis del condicional */}
-      )} 
+      </div>
+      )}
       
       <TaskDetailModal 
         task={selectedTask} 
