@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@vercel/postgres';
 import { Task, SubTask } from '@/types';
+import { auth } from '@/auth'; // <--- MOVIDO AL PRINCIPIO (IMPORTANTE)
 
+// --- MAPPER HELPER ---
 function mapTask(row: QueryResultRow): Task {
   return {
     id: row.id,
@@ -22,10 +24,12 @@ function mapTask(row: QueryResultRow): Task {
   };
 }
 
+// --- SUBTASKS ACTIONS ---
+
 export async function toggleSubtask(taskId: string, subtaskId: string, completed: boolean) {
   try {
     const { rows } = await sql`SELECT subtasks FROM tasks WHERE id = ${taskId}`;
-    if (!rows || rows.length === 0) return { success: false, error: "Tast not found" };
+    if (!rows || rows.length === 0) return { success: false, error: "Task not found" };
     
     const subtasks: SubTask[] = rows[0].subtasks || [];
     const updatedSubtasks = subtasks.map((st: SubTask) => 
@@ -83,7 +87,7 @@ export async function deleteSubtask(taskId: string, subtaskId: string) {
   }
 }
 
-import { auth } from '@/auth';
+// --- TASK ACTIONS ---
 
 export async function getTasks(showArchived: boolean = false): Promise<Task[]> {
   try {
@@ -137,7 +141,7 @@ export async function archiveTask(taskId: string) {
 export async function bulkArchiveTasks(taskIds: string[]) {
   try {
     console.log(`[Archive] Archiving ${taskIds.length} tasks:`, taskIds);
-    // SQLite/Postgres batch update
+    // SQLite/Postgres batch update logic
     for (const id of taskIds) {
       await sql`UPDATE tasks SET is_archived = TRUE WHERE id = ${id}`;
     }
@@ -280,6 +284,7 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
   }
 }
 
+// ESTA ES LA FUNCIÓN CLAVE PARA TU NOTA ADHESIVA
 export async function updateTaskNotes(taskId: string, notes: string) {
   try {
     await sql`UPDATE tasks SET notes = ${notes} WHERE id = ${taskId}`;

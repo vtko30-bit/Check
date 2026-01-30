@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
-import { MobileNav } from "@/components/MobileNav";
-import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
-import { getBranding } from "@/actions/branding";
 import { Inter, Caveat } from "next/font/google";
 import { ThemeProvider } from "@/components/NextThemeProvider"; 
 
@@ -15,27 +11,18 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Gestor de Tareas Pro",
-  description: "Gestión de tareas productivas",
+  title: "Check",
+  description: "Gestión de tareas minimalista",
   manifest: '/manifest.webmanifest',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
   themeColor: '#14b8a6',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Check',
-  },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  const isLoggedIn = !!session?.user;
-  const companyLogo = await getBranding();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={cn(
-        "antialiased flex flex-col md:flex-row min-h-screen bg-slate-50/50 text-foreground",
+        "antialiased min-h-screen bg-slate-50/50 text-foreground",
         inter.className,
         caveat.variable
       )}>
@@ -46,15 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             enableSystem={false}
             disableTransitionOnChange
         >
-            {isLoggedIn && <MobileNav user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />}
-            {isLoggedIn && (
-              <div className="hidden md:flex">
-                <Sidebar user={session.user as { id: string; name?: string; email?: string; image?: string }} companyLogo={companyLogo} />
-              </div>
-            )}
-            <main className={cn("flex-1 p-4 md:p-8 overflow-auto w-full", !isLoggedIn && "flex items-center justify-center")}>
-              {children}
-            </main>
+            {children}
         </ThemeProvider>
       </body>
     </html>
