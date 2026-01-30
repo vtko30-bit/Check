@@ -23,7 +23,8 @@ import {
   Edit,
   LayoutList,
   Kanban, 
-  List
+  List,
+  AlertCircle
 } from "lucide-react";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { TaskFormDialog } from "./TaskFormDialog";
@@ -385,12 +386,18 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     task.status !== 'completed';
                     const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
                     const isPriority = task.priority === 'urgent';
-                
+                    
+                    // Lógica de colores de borde para Móvil
+                    const borderClass = isPriority 
+                        ? "border-l-red-500 bg-red-50/20" 
+                        : task.status === 'completed' 
+                            ? "border-l-green-500 bg-green-50/10" 
+                            : "border-l-primary bg-white";
 
                     return (
                     <div key={task.id} className={cn(
-                        "p-4 flex flex-col gap-3 active:bg-slate-50 dark:active:bg-slate-800 transition-colors",
-                        isPriority ? "bg-red-50/30 dark:bg-red-900/10" : isOverdue ? "bg-amber-50/30 dark:bg-amber-900/10" : ""
+                        "p-4 flex flex-col gap-3 transition-colors border-l-[6px] border-b",
+                        borderClass
                     )}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
@@ -402,16 +409,18 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 {task.title}
                                 </h3>
                                 {isPriority && (
-                                <span className="text-[8px] bg-red-600 text-white font-black px-1 py-0.5 rounded uppercase">Urgent</span>
+                                <span className="text-[8px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                                    <AlertCircle className="w-2 h-2" /> Urgent
+                                </span>
                                 )}
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                                <span className={cn("flex items-center gap-1", isOverdue ? "text-red-600 font-bold" : isUrgent ? "text-amber-600" : "")}>
+                                <span className={cn("flex items-center gap-1", isOverdue ? "text-red-600 font-bold" : isUrgent ? "text-amber-600" : "text-primary/80")}>
                                 <CalendarIcon className="w-3 h-3" /> {formatDate(task.deadline)}
                                 </span>
                                 {assignee && (
                                 <div className="flex items-center gap-1">
-                                    <Avatar className="h-4 w-4">
+                                    <Avatar className="h-4 w-4 ring-1 ring-white">
                                     <AvatarImage src={assignee.avatarUrl} />
                                     <AvatarFallback>{assignee.name?.slice(0, 1)}</AvatarFallback>
                                     </Avatar>
@@ -428,10 +437,10 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     toggleStatus(task);
                                 }}
                                 className={cn(
-                                    "flex items-center justify-center w-8 h-8 rounded-lg transition-all",
+                                    "flex items-center justify-center w-8 h-8 rounded-lg transition-all shadow-sm border",
                                     task.status === "completed"
-                                    ? "bg-green-100 text-green-600 hover:bg-green-200"
-                                    : "bg-slate-100 text-slate-300 hover:text-slate-500 hover:bg-slate-200"
+                                    ? "bg-green-100 text-green-600 border-green-200"
+                                    : "bg-white text-slate-300 border-slate-200"
                                 )}
                             >
                                 {task.status === "completed" ? (
@@ -450,14 +459,14 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 task={task} 
                                 currentUser={currentUser}
                                 trigger={
-                                <button className="p-2 text-slate-400 hover:text-primary"><Edit className="w-4 h-4" /></button>
+                                <button className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-full"><Edit className="w-4 h-4" /></button>
                                 }
                             />
                             
                             {!task.isArchived && (
                                 <button 
                                     onClick={() => bulkArchiveTasks([task.id])}
-                                    className="p-2 text-slate-400 hover:text-slate-600"
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full"
                                 >
                                     <Archive className="w-4 h-4" />
                                 </button>
@@ -465,7 +474,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             
                             <button 
                                 onClick={() => deleteTask(task.id)}
-                                className="p-2 text-slate-400 hover:text-red-500"
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
@@ -538,14 +547,19 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                         new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
                                         task.status !== 'completed';
 
+                        // Lógica de colores de borde para Desktop
+                        const rowBorderClass = isPriority 
+                            ? "border-l-red-500 bg-red-50/10 hover:bg-red-50/30" 
+                            : task.status === 'completed'
+                                ? "border-l-green-500 bg-green-50/5 hover:bg-green-50/20"
+                                : "border-l-transparent hover:bg-primary/5 hover:border-l-primary";
+
                         return (
                         <tr
                             key={task.id}
                             className={cn(
-                            "hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group",
-                            isPriority ? "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-100/40" : 
-                            isOverdue ? "bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-100/50" : 
-                            isUrgent && "bg-red-50 dark:bg-red-900/10 hover:bg-red-100/50",
+                            "transition-colors group border-l-[3px]",
+                            rowBorderClass
                             )}
                         >
                             <td className="px-4 md:px-6 py-3 align-top">
@@ -571,15 +585,15 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     {task.title}
                                     </span>
                                     {isPriority && (
-                                    <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                                        Urgent
+                                    <span className="text-[9px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse flex items-center gap-1">
+                                        <AlertCircle className="w-2 h-2" /> Urgent
                                     </span>
                                     )}
                                 </div>
                                 {(isUrgent || isOverdue) && !isPriority && (
                                     <span className={cn(
                                     "text-xs md:hidden flex items-center gap-1",
-                                    isOverdue ? "text-amber-600" : "text-red-500"
+                                    isOverdue ? "text-red-600 font-bold" : "text-amber-600"
                                     )}>
                                     <Clock className="w-3 h-3" /> {isOverdue ? 'Vencido' : 'Urgente'}
                                     </span>
@@ -591,7 +605,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             <td className="px-4 md:px-6 py-1.5">
                             <div className="flex items-center gap-2">
                                 {assignee && (
-                                <Avatar className="h-6 w-6">
+                                <Avatar className="h-6 w-6 ring-1 ring-white shadow-sm">
                                     <AvatarImage src={assignee.avatarUrl} />
                                     <AvatarFallback>
                                     {assignee.name?.slice(0, 2)}
@@ -610,13 +624,16 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             )}
                             >
                             <div className="flex flex-col gap-1">
-                                <span className="flex items-center gap-1">
-                                <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
+                                <span className={cn(
+                                    "flex items-center gap-1 font-medium",
+                                    isOverdue ? "text-red-600" : isUrgent ? "text-amber-600" : "text-slate-500"
+                                )}>
+                                <CalendarIcon className={cn("w-3.5 h-3.5", isOverdue ? "text-red-500" : "text-slate-400")} />
                                 {formatDate(task.deadline)}
                                 </span>
                                 {task.frequency &&
                                 task.frequency !== "one_time" && (
-                                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full w-fit flex items-center gap-1 font-normal">
+                                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full w-fit flex items-center gap-1 font-normal border">
                                     <RefreshCw className="w-2.5 h-2.5" />
                                     {frequencyLabels[task.frequency] ||
                                         task.frequency}
@@ -630,16 +647,16 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 <button
                                     onClick={() => toggleStatus(task)}
                                     className={cn(
-                                        "flex items-center gap-2 px-2 py-1.5 rounded-md border transition-all text-xs font-medium w-full max-w-[120px]",
+                                        "flex items-center gap-2 px-2 py-1.5 rounded-md border transition-all text-xs font-medium w-full max-w-[120px] shadow-sm",
                                         task.status === "completed"
                                         ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-primary hover:border-primary/30"
                                     )}
                                 >
                                     {task.status === "completed" ? (
                                         <CheckSquare className="w-4 h-4 text-green-600" />
                                     ) : (
-                                        <Square className="w-4 h-4 text-slate-400" />
+                                        <Square className="w-4 h-4 text-slate-300 group-hover:text-primary" />
                                     )}
                                     <span>{statusLabels[task.status]}</span>
                                 </button>
@@ -648,14 +665,14 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             <td className="px-4 md:px-6 py-4 space-x-2">
                             <div className="flex items-center gap-2">
                                 <input
-                                className="text-xs border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 bg-transparent focus:outline-none w-full dark:text-slate-300"
+                                className="text-xs border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 bg-transparent focus:outline-none w-full dark:text-slate-300 placeholder:text-slate-400"
                                 defaultValue={task.notes}
                                 onBlur={(e) =>
                                     updateTaskNotes(task.id, e.target.value)
                                 }
-                                placeholder="Nota..."
+                                placeholder="Añadir nota..."
                                 />
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {!task.isArchived && (
                                     <>
                                     <TaskFormDialog 
