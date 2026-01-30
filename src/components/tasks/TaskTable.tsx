@@ -47,8 +47,6 @@ interface TaskTableProps {
   currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
 }
 
-// Ya no necesitamos etiquetas de texto para el estado, usaremos el check visual
-// pero mantenemos el mapeo por si queremos usarlo en tooltips
 const statusLabels: Record<string, string> = {
   pending: "Pendiente",
   in_progress: "En Progreso",
@@ -391,11 +389,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     task.status !== 'completed';
                     const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
                     const isPriority = task.priority === 'urgent';
-                    
-                    const hasSubtasks = task.subtasks && task.subtasks.length > 0;
-                    const progress = hasSubtasks 
-                    ? Math.round((task.subtasks.filter(st => st.completed).length / task.subtasks.length) * 100)
-                    : (task.status === 'completed' ? 100 : 0);
+                
 
                     return (
                     <div key={task.id} className={cn(
@@ -452,15 +446,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </button>
                         </div>
 
-                        {/* Progress Bar Mini */}
-                        <div className="space-y-1">
-                            <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div 
-                                className={cn("h-full transition-all", progress === 100 ? "bg-green-500" : "bg-primary")}
-                                style={{ width: `${progress}%` }}
-                            />
-                            </div>
-                        </div>
+                        {/* [BARRA DE PROGRESO ELIMINADA AQUÍ] */}
 
                         <div className="flex items-center justify-between mt-1">
                         <div className="flex items-center gap-1">
@@ -569,11 +555,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                         isNearDeadline(task.deadline) &&
                         task.status !== "completed";
                         const assignee = getAssignedUser(task.assignedUserId);
-                        const hasSubtasks = task.subtasks && task.subtasks.length > 0;
-                        const progress = hasSubtasks 
-                        ? Math.round((task.subtasks.filter(st => st.completed).length / task.subtasks.length) * 100)
-                        : (task.status === 'completed' ? 100 : 0);
-
                         const isPriority = task.priority === 'urgent';
                         const isOverdue = validDate(task.deadline) && 
                                         new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
@@ -627,22 +608,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 )}
                                 </div>
 
-                                {/* Barra de Progreso Universal */}
-                                <div className="w-full max-w-[200px] space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Progreso</span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">{progress}%</span>
-                                </div>
-                                <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-50 dark:border-slate-800">
-                                    <div 
-                                    className={cn(
-                                        "h-full transition-all duration-700 ease-in-out",
-                                        progress === 100 ? "bg-green-500" : "bg-primary"
-                                    )}
-                                    style={{ width: `${progress}%` }}
-                                    />
-                                </div>
-                                </div>
+                                {/* [BARRA DE PROGRESO ELIMINADA AQUÍ] */}
+                                
                             </div>
                             </td>
                             <td className="px-4 md:px-6 py-1.5">
