@@ -10,7 +10,6 @@ import {
   bulkArchiveTasks,
   deleteTask,
   bulkDeleteTasks,
-  toggleTaskPin,
 } from "@/actions/tasks";
 import { cn } from "@/lib/utils";
 import {
@@ -22,15 +21,12 @@ import {
   CheckSquare,
   Trash2,
   Edit,
-  Pin,
-  Monitor,
   LayoutList,
   Kanban, 
   List
 } from "lucide-react";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { TaskFormDialog } from "./TaskFormDialog";
-import { launchFloatingNote } from "@/lib/floating-note";
 import { TaskBoard } from "./TaskBoard";
 
 const frequencyLabels: Record<string, string> = {
@@ -446,7 +442,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </button>
                         </div>
 
-                        {/* [BARRA DE PROGRESO ELIMINADA AQUÍ] */}
 
                         <div className="flex items-center justify-between mt-1">
                         <div className="flex items-center gap-1">
@@ -476,23 +471,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </button>
                         </div>
                         
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => toggleTaskPin(task.id, !task.isPinned)}
-                                className={cn("p-2 rounded-full", task.isPinned ? "text-yellow-600 bg-yellow-50" : "text-slate-300")}
-                            >
-                                <Pin className={cn("w-4 h-4", task.isPinned && "fill-yellow-600")} />
-                            </button>
-                            <button
-                                onClick={() => {
-                                toggleTaskPin(task.id, true);
-                                launchFloatingNote(task);
-                                }}
-                                className="p-2 text-slate-400"
-                            >
-                                <Monitor className="w-4 h-4" />
-                            </button>
-                        </div>
+                        {/* BOTONES ANTERIORES ELIMINADOS AQUÍ */}
+
                         </div>
                     </div>
                     );
@@ -607,8 +587,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     </span>
                                 )}
                                 </div>
-
-                                {/* [BARRA DE PROGRESO ELIMINADA AQUÍ] */}
                                 
                             </div>
                             </td>
@@ -682,32 +660,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 <div className="flex items-center gap-1">
                                 {!task.isArchived && (
                                     <>
-                                    <button
-                                        onClick={async () => {
-                                        if (!task.isPinned) {
-                                            await toggleTaskPin(task.id, true);
-                                        }
-                                        await launchFloatingNote(task);
-                                        }}
-                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-all"
-                                        title="Lanzar al Escritorio"
-                                    >
-                                        <Monitor className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                        await toggleTaskPin(task.id, !task.isPinned);
-                                        }}
-                                        className={cn(
-                                        "p-1.5 rounded-md transition-all",
-                                        task.isPinned 
-                                            ? "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100" 
-                                            : "text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                        )}
-                                        title={task.isPinned ? "Desanclar" : "Anclar al tablero"}
-                                    >
-                                        <Pin className={cn("w-4 h-4", task.isPinned && "fill-yellow-600")} />
-                                    </button>
                                     <TaskFormDialog 
                                         users={users} 
                                         task={task} 
@@ -757,8 +709,6 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
             </table>
             </div>
       </div>
-      )}
-
       <TaskDetailModal 
         task={selectedTask} 
         tasks={tasks}

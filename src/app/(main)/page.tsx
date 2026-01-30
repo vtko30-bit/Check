@@ -4,7 +4,6 @@ import { getUsers } from '@/actions/users';
 import { TaskTable } from '@/components/tasks/TaskTable';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { SendReportButton } from '@/components/SendReportButton';
-import { StickyNote } from '@/components/tasks/StickyNote';
 import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +18,6 @@ export default async function Dashboard() {
   const tasks = await getTasks(true);
   const users = await getUsers();
 
-  const pinnedTasks = tasks.filter(t => t.isPinned && !t.isArchived);
-
   return (
     <div className="max-w-6xl mx-auto pb-20 px-4 md:px-0">
       <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-4">
@@ -33,24 +30,12 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      {/* --- AQUÍ ESTÁ EL CAMBIO: Dashboard de Productividad --- */}
+      {/* Dashboard de Productividad (Lo mantenemos porque es útil) */}
       <ProductivityStats tasks={tasks} />
 
-      {/* Sticky Board Section */}
-      {pinnedTasks.length > 0 && (
-        <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h2 className="text-lg font-medium text-slate-500 mb-6 flex items-center gap-2">
-            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-            Tablero de Notas (Post-its)
-          </h2>
-          <div className="flex flex-wrap gap-8 justify-start">
-            {pinnedTasks.map(task => (
-              <StickyNote key={task.id} task={task} />
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* AQUÍ ELIMINAMOS EL BLOQUE DE STICKY NOTES */}
+      
+      {/* Tabla de Tareas */}
       <TaskTable tasks={tasks} users={users} currentUser={currentUser} />
     </div>
   );
