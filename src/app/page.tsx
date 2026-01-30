@@ -1,3 +1,4 @@
+import { ProductivityStats } from '@/components/tasks/ProductivityStats';
 import { getTasks, checkOverdueTasks } from '@/actions/tasks';
 import { getUsers } from '@/actions/users';
 import { TaskTable } from '@/components/tasks/TaskTable';
@@ -25,16 +26,19 @@ export default async function Dashboard() {
       <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-4">
         <h1 className="text-xl md:text-2xl font-bold">Mis Tareas</h1>
         
-        {/* Botones de acción (Ya sin el botón de modo oscuro) */}
+        {/* Botones de acción */}
         <div className="flex items-center gap-2">
             <SendReportButton />
             <TaskFormDialog users={users} currentUser={currentUser} />
         </div>
       </div>
 
+      {/* --- AQUÍ ESTÁ EL CAMBIO: Dashboard de Productividad --- */}
+      <ProductivityStats tasks={tasks} />
+
       {/* Sticky Board Section */}
       {pinnedTasks.length > 0 && (
-        <div className="mb-12">
+        <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h2 className="text-lg font-medium text-slate-500 mb-6 flex items-center gap-2">
             <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
             Tablero de Notas (Post-its)
