@@ -1,30 +1,36 @@
-import { auth } from '@/auth';
-import { redirect } from 'next/navigation';
-import { SettingsView } from '@/components/settings/SettingsView';
-import { getBranding } from '@/actions/branding';
+import { auth } from "@/auth";
+import { getBranding } from "@/actions/branding";
+import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
+import { redirect } from "next/navigation"; // Para proteger rutas
 
-export const dynamic = 'force-dynamic';
-
-export default async function SettingsPage() {
+export default async function MainAppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  
-  // Only admins can see the settings page
-  const user = session?.user as { id: string; name: string; email: string; role: string } | undefined;
-  if (!user || user.role !== 'admin') {
-    redirect('/');
+  const isLoggedIn = !!session?.user;
+  const companyLogo = await getBranding();
+
+  // Si alguien intenta entrar aquí sin loguearse, fuera.
+  if (!isLoggedIn) {
+      // Opcional: redirect('/api/auth/signin');
+      return (
+        <main className="flex items-center justify-center h-screen w-full">
+            {children} 
+        </main>
+      );
   }
 
-  const currentLogo = await getBranding();
-
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h1>
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* AQUÍ SÍ ponemos las barras */}
+      <MobileNav user={session.user} companyLogo={companyLogo} />
+      
+      <div className="hidden md:flex">
+        <Sidebar user={session.user as any} companyLogo={companyLogo} />
       </div>
       
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
-        <SettingsView currentLogo={currentLogo} />
-      </div>
+      <main className="flex-1 p-4 md:p-8 overflow-auto w-full">
+        {children}
+      </main>
     </div>
   );
 }

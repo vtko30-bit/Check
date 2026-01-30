@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { Inter, Caveat } from "next/font/google";
 import { ThemeProvider } from "@/components/NextThemeProvider"; 
 
+// OJO: ¡Aquí NO importamos Sidebar ni MobileNav!
+
 const inter = Inter({ subsets: ["latin"] });
 const caveat = Caveat({ 
   subsets: ["latin"],
@@ -33,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             enableSystem={false}
             disableTransitionOnChange
         >
+            {/* Aquí solo renderizamos los hijos. La barra lateral se encargará el otro layout. */}
             {children}
         </ThemeProvider>
       </body>
