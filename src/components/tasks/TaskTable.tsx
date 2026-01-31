@@ -211,7 +211,8 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
           )}
         >
           <Archive className="w-4 h-4" />
-          Archivado
+          {/* AQUÍ ESTÁ EL CAMBIO DE TEXTO */}
+          Archivadas
           <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full text-slate-500">
             {tasks.filter(t => t.isArchived).length}
           </span>
@@ -366,7 +367,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
                                 <Archive className="w-8 h-8 text-slate-300" />
                             </div>
-                            <p>No hay tareas en archivado</p>
+                            <p>No hay tareas archivadas</p>
                         </>
                     )}
                 </div>
