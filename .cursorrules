@@ -1,0 +1,23 @@
+# Check - Reglas para el asistente de Cursor
+
+## Proyecto
+- App de gestión de tareas "Check" (Next.js 16, TypeScript, PostgreSQL).
+- Autenticación: NextAuth v5 con credenciales.
+- Base de datos: @vercel/postgres (Neon/Postgres), acceso vía `src/lib/db.ts` con `POSTGRES_URL`.
+
+## Estilo de código
+- Responder siempre en **español**.
+- Usar Server Actions (`'use server'`) para mutaciones; llamarlas desde el cliente con `onSubmit` + `e.preventDefault()`, no con `action={}` en formularios cliente.
+- Componentes cliente: `'use client'` al inicio del archivo.
+
+## Estructura
+- `src/actions/` — Server Actions (tasks, users, branding, notifications, auth).
+- `src/components/` — UI (tasks, users, settings, layout, ui).
+- `src/app/` — Rutas App Router (main, login, api).
+- `src/lib/` — Utilidades (db, date, email, utils).
+- `src/types/` — Tipos TypeScript.
+
+## Convenciones
+- Mensajes de error: devolver `{ success: false, error: string }` desde Server Actions.
+- Validar antes de mutar (ej: email duplicado, subtareas pendientes al completar tarea).
+- Branding: nombre de la app es "Check", no "TaskPro".

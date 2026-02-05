@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Admin User",
+      "email": "admin@example.com",
+      "role": "admin",
+      "avatarUrl": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
+    },
+    {
+      "id": "ce491746-ec38-4b9f-bec6-352cf853f07b",
+      "name": "Prueba",
+      "email": "ricogelatto@gmail.com",
+      "role": "viewer",
+      "avatarUrl": "https://api.dicebear.com/7.x/avataaars/svg?seed=Prueba"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "1760ca4d-cf8b-4db9-8160-4c707a8c0ab3",
+      "title": "revisar cocina",
+      "description": "",
+      "assignedUserId": "1",
+      "deadline": "2025-12-20",
+      "status": "completed",
+      "notes": "",
+      "createdAt": "2025-12-19T18:23:38.867Z"
+    }
+  ]
+}
