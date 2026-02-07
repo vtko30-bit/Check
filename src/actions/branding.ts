@@ -48,6 +48,7 @@ export async function updateBranding(logoBase64: string) {
     }
     
     revalidatePath('/');
+    revalidatePath('/login');
     return { success: true };
   } catch (error) {
     console.error('Error updating branding:', error);
