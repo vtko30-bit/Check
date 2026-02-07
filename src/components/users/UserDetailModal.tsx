@@ -67,6 +67,7 @@ export function UserDetailModal({ user, open, onClose, onSaved, currentUserRole 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
@@ -90,6 +91,7 @@ export function UserDetailModal({ user, open, onClose, onSaved, currentUserRole 
   }
 
   async function executeToggleActive() {
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
