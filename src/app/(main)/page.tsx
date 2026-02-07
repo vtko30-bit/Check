@@ -1,31 +1,38 @@
 import { ProductivityStats } from '@/components/tasks/ProductivityStats';
-import { getTasks, checkOverdueTasks } from '@/actions/tasks';
+import { getTasks } from '@/actions/tasks';
 import { getUsers } from '@/actions/users';
 import { TaskTable } from '@/components/tasks/TaskTable';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
+import { TaskViewToggle } from '@/components/tasks/TaskViewToggle';
 import { auth } from '@/auth';
 import { Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const session = await auth();
   const currentUser = session?.user;
-  
-  // Trigger overdue notification logic
-  await checkOverdueTasks();
-  
-  const tasks = await getTasks(true);
+  const params = await searchParams;
+  const viewMode = params?.view === 'mine' ? 'mine' : 'all';
+  const tasks = await getTasks(true, viewMode);
   const users = await getUsers();
 
   return (
     <div className="max-w-6xl mx-auto pb-24 px-4 md:px-0 relative min-h-screen">
       
-      {/* Cabecera Limpia */}
-      <div className="flex items-center justify-between mb-6 md:mb-8">
+      {/* Cabecera con toggle de vista */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">
-          Mis Tareas
+          {viewMode === 'mine' ? 'Mis Tareas' : 'Todas las Tareas'}
         </h1>
+        <TaskViewToggle 
+          currentView={viewMode} 
+          canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true} 
+        />
       </div>
 
       {/* Dashboard de Productividad */}

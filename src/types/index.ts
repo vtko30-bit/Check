@@ -5,7 +5,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  avatarUrl?: string; // Optional for UI chips
+  avatarUrl?: string;
+  isActive?: boolean;
+  canViewAllTasks?: boolean;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed';

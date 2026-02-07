@@ -15,7 +15,7 @@ Esta guía te ayudará a trabajar en tu proyecto localmente **sin afectar** lo q
 Si aún no tienes el código localmente:
 ```bash
 git clone <tu-repositorio>
-cd respaldo-check
+cd Check
 ```
 
 ### 2. Instalar Dependencias
@@ -69,6 +69,9 @@ npm run dev
 ```
 
 Luego visita: `http://localhost:3000/api/seed`
+
+> **Nota:** Si tienes `SEED_SECRET` en `.env.local`, debes enviar el header:
+> `Authorization: Bearer <tu-SEED_SECRET>`. En desarrollo sin `SEED_SECRET` funciona sin autenticación.
 
 Esto creará las tablas y el usuario demo:
 - **Email:** `admin@check.com`
@@ -144,6 +147,15 @@ Antes de hacer `git push` que despliegue a Vercel:
 - [ ] Las variables de entorno en Vercel están configuradas correctamente
 
 ## 🐛 Solución de Problemas
+
+### API /api/cron no responde
+
+**Causa:** El endpoint requiere `Authorization: Bearer <CRON_SECRET>`.
+
+**Solución:** En Vercel Cron, configura `CRON_SECRET` en las variables de entorno. En local, puedes probar con:
+```bash
+curl -H "Authorization: Bearer tu-CRON_SECRET" http://localhost:3000/api/cron
+```
 
 ### Error: "missing_connection_string"
 

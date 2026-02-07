@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const companyLogo = await getBranding();
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-2xl mx-auto w-full">
       <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">
         Configuración
       </h1>

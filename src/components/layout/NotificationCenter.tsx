@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Check } from 'lucide-react';
 import { Notification } from '@/types';
 import { getNotifications, markAsRead, markAllAsRead } from '@/actions/notifications';
@@ -12,6 +13,8 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
   const [unreadCount, setUnreadCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevUnreadCountRef = useRef(0);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, right: 0 });
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
@@ -48,7 +51,7 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
   }, [unreadCount]);
 
   const handleMarkRead = async (id: string) => {
-    await markAsRead(id);
+    await markAsRead(id, userId);
     fetchNotifications();
   };
 
@@ -57,33 +60,32 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
     fetchNotifications();
   };
 
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors group"
-      >
-        <Bell className={cn(
-          "w-5 h-5 transition-colors",
-          unreadCount > 0 ? "text-primary fill-primary/10" : "text-slate-400 group-hover:text-slate-600"
-        )} />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-            {unreadCount > 10 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+  const handleToggle = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: align === 'left' ? rect.left : 0,
+        right: align === 'right' ? window.innerWidth - rect.right : 0,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
 
-      {isOpen && (
-        <>
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setIsOpen(false)} 
-          />
-          <div className={cn(
-            "absolute mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200",
-            align === 'right' ? 'right-0' : 'left-0'
-          )}>
+  const dropdownContent = isOpen && typeof document !== 'undefined' && (
+    <>
+      <div 
+        className="fixed inset-0 z-[9998]" 
+        onClick={() => setIsOpen(false)} 
+        aria-hidden="true"
+      />
+      <div 
+        className="fixed w-80 bg-white rounded-xl shadow-2xl border border-slate-200 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        style={{
+          top: dropdownPosition.top,
+          ...(align === 'left' ? { left: dropdownPosition.left } : { right: dropdownPosition.right }),
+        }}
+      >
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
                 Notificaciones
@@ -156,8 +158,30 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
               )}
             </div>
           </div>
-        </>
-      )}
+    </>
+  );
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        onClick={handleToggle}
+        className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors group"
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+      >
+        <Bell className={cn(
+          "w-5 h-5 transition-colors",
+          unreadCount > 0 ? "text-primary fill-primary/10" : "text-slate-400 group-hover:text-slate-600"
+        )} />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+            {unreadCount > 10 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {dropdownContent && createPortal(dropdownContent, document.body)}
     </div>
   );
 }

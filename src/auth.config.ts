@@ -9,6 +9,7 @@ export const authConfig = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        token.canViewAllTasks = (user as any).can_view_all_tasks === true;
       }
       return token;
     },
@@ -16,6 +17,7 @@ export const authConfig = {
       if (token && session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).canViewAllTasks = token.canViewAllTasks === true;
       }
       return session;
     },
@@ -28,23 +30,12 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/users") ||
         nextUrl.pathname.startsWith("/settings");
 
-      console.log(
-        `[Auth] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}, OnDashboard: ${isOnDashboard}, OnLogin: ${isOnLogin}`,
-      );
-
-      // If user is on dashboard and NOT logged in, redirect to login
-      if (isOnDashboard && !isLoggedIn) {
-        console.log("[Auth] Redirecting to login");
-        return false;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Auth] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}`);
       }
 
-      // If user is on login and IS logged in, redirect to dashboard
-      if (isOnLogin && isLoggedIn) {
-        console.log("[Auth] Redirecting to dashboard");
-        return Response.redirect(new URL("/", nextUrl));
-      }
-
-      console.log("[Auth] Allowing access");
+      if (isOnDashboard && !isLoggedIn) return false;
+      if (isOnLogin && isLoggedIn) return Response.redirect(new URL("/", nextUrl));
       return true; // Allow everything else (public assets, API, etc.)
     },
   },

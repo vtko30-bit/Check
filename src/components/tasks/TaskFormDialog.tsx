@@ -19,6 +19,7 @@ interface TaskFormDialogProps {
 export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<{title: string}[]>(task?.subtasks?.map(st => ({ title: st.title })) || []);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
@@ -49,7 +50,7 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
     const subtasksWithIds: SubTask[] = subtasks.map(st => {
       const existing = task?.subtasks?.find(est => est.title === st.title);
       return {
-        id: existing?.id || Math.random().toString(36).substring(2, 9),
+        id: existing?.id || crypto.randomUUID(),
         title: st.title,
         completed: existing?.completed || false
       };
@@ -57,10 +58,15 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
     formData.append('subtasks', JSON.stringify(subtasksWithIds));
     
     try {
+      let result: { success?: boolean; error?: string } | void;
       if (isEdit && task) {
-        await updateTask(task.id, formData);
+        result = await updateTask(task.id, formData);
       } else {
-        await createTask(formData);
+        result = await createTask(formData);
+      }
+      if (result && !result.success && result.error) {
+        setError(result.error);
+        return;
       }
       setOpen(false);
       if (!isEdit) setSubtasks([]);
@@ -70,7 +76,7 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setError(null); }}>
       <DialogTrigger asChild>
         {trigger || (
           <Button className="gap-2 shadow-sm">
@@ -92,6 +98,11 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
         </div>
         
         <form onSubmit={handleSubmit} className="p-6">
+          {error && (
+            <p className="mb-4 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+              {error}
+            </p>
+          )}
           <div className="space-y-5 max-h-[60vh] overflow-y-auto px-1">
             {/* Titulo */}
             <div className="space-y-1.5">

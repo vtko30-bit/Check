@@ -46,7 +46,7 @@ export function CalendarView({ tasks }: CalendarViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-lg border shadow-sm">
+    <div className="flex flex-col min-h-[500px] h-[calc(100vh-180px)] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
@@ -65,18 +65,26 @@ export function CalendarView({ tasks }: CalendarViewProps) {
         </div>
       </div>
 
-      {/* Grid Header */}
-      <div className="grid grid-cols-7 border-b bg-slate-50">
-        {['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(d => (
-          <div key={d} className="py-2 text-sm font-medium text-center text-slate-500 uppercase tracking-wider hidden md:block">{d}</div>
-        ))}
-         {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
-          <div key={d} className="py-2 text-sm font-medium text-center text-slate-500 uppercase tracking-wider md:hidden">{d}</div>
+      {/* Grid Header - una sola fila con 7 columnas */}
+      <div className="grid grid-cols-7 border-b bg-slate-50 shrink-0">
+        {[
+          { long: 'Domingo', short: 'D' },
+          { long: 'Lunes', short: 'L' },
+          { long: 'Martes', short: 'M' },
+          { long: 'Miércoles', short: 'X' },
+          { long: 'Jueves', short: 'J' },
+          { long: 'Viernes', short: 'V' },
+          { long: 'Sábado', short: 'S' },
+        ].map(({ long, short }) => (
+          <div key={long} className="py-2 px-1 text-sm font-medium text-center text-slate-500 uppercase tracking-wider">
+            <span className="hidden sm:inline">{long}</span>
+            <span className="sm:hidden">{short}</span>
+          </div>
         ))}
       </div>
 
-      {/* Grid Body */}
-      <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto">
+      {/* Grid Body - cuadrícula de 7 columnas */}
+      <div className="grid grid-cols-7 flex-1 min-h-0 overflow-y-auto" style={{ gridAutoRows: 'minmax(80px, 1fr)' }}>
         {/* Empty cells for previous month */}
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
             <div key={`pre-${i}`} className="border-r border-b bg-slate-50/30 p-1 md:p-2" />

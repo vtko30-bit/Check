@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react'; // <--- Agregamos CheckSquare
-import { handleSignOut } from '@/actions/auth';
+import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
@@ -17,7 +16,7 @@ export function Sidebar({ user, companyLogo }: {
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
     { href: '/calendar', label: 'Calendario', icon: Calendar },
-    { href: '/users', label: 'Usuarios', icon: Users },
+    ...((user.role === 'admin' || user.role === 'editor') ? [{ href: '/users', label: 'Usuarios', icon: Users }] : []),
     ...(user.role === 'admin' ? [{ href: '/settings', label: 'Configuración', icon: Settings }] : []),
   ];
 
@@ -36,17 +35,14 @@ export function Sidebar({ user, companyLogo }: {
           <NotificationCenter userId={user.id} align="left" />
         </div>
 
-        {/* Logo de la Empresa (Placeholder) */}
+        {/* Logo de la Empresa */}
         <div className="mb-6 px-2">
-          <div className="h-16 w-full rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2">
-            <div className="relative w-full h-full">
-              <Image 
-                src={companyLogo || "/logo.png"} 
-                alt="Company Logo" 
-                fill 
-                className="object-contain" 
-              />
-            </div>
+          <div className="h-16 w-full rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2 overflow-hidden">
+            <img 
+              src={companyLogo || "/logo.png"} 
+              alt="Logo de Check" 
+              className="max-h-full max-w-full object-contain"
+            />
           </div>
         </div>
 
@@ -85,7 +81,7 @@ export function Sidebar({ user, companyLogo }: {
 
       <div className="p-4 border-t border-slate-200 bg-slate-50">
         <button
-          onClick={() => handleSignOut()}
+          onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-red-600 hover:bg-red-50 w-full"
         >
           <LogOut className="w-4 h-4" />

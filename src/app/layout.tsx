@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Inter, Caveat } from "next/font/google";
-import { ThemeProvider } from "@/components/NextThemeProvider"; 
+import { ThemeProvider } from "@/components/NextThemeProvider";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { Toaster } from "sonner"; 
 
 // OJO: ¡Aquí NO importamos Sidebar ni MobileNav!
 
@@ -21,8 +23,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: '#14b8a6',
 };
 
@@ -41,8 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             enableSystem={false}
             disableTransitionOnChange
         >
-            {/* Aquí solo renderizamos los hijos. La barra lateral se encargará el otro layout. */}
+            <ServiceWorkerRegister />
             {children}
+            <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>
     </html>

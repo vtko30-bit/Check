@@ -3,7 +3,32 @@
 import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { Task, SubTask } from '@/types';
-import { auth } from '@/auth'; // <--- MOVIDO AL PRINCIPIO (IMPORTANTE)
+import { auth } from '@/auth';
+import { z } from 'zod';
+
+const taskFormSchema = z.object({
+  title: z.string().min(1, 'El título es obligatorio').max(255),
+  description: z.string().max(2000).optional().default(''),
+  assignedUserId: z.string().optional().nullable(),
+  deadline: z.string().optional(),
+  notes: z.string().optional().default(''),
+  frequency: z.enum(['one_time', 'daily', 'weekly', 'monday', 'monthly']).default('one_time'),
+  priority: z.enum(['normal', 'urgent']).default('normal'),
+});
+
+// --- OWNERSHIP HELPER ---
+async function canModifyTask(taskId: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, error: 'No autenticado' };
+  const user = session.user as { id: string; role: string };
+  const isAdmin = user.role === 'admin';
+  if (isAdmin) return { ok: true };
+  const { rows } = await sql`SELECT assigned_user_id FROM tasks WHERE id = ${taskId}`;
+  if (!rows?.length) return { ok: false, error: 'Tarea no encontrada' };
+  const assigned = rows[0]?.assigned_user_id;
+  if (assigned !== user.id) return { ok: false, error: 'No tienes permiso para modificar esta tarea' };
+  return { ok: true };
+}
 
 // --- MAPPER HELPER ---
 function mapTask(row: QueryResultRow): Task {
@@ -28,6 +53,8 @@ function mapTask(row: QueryResultRow): Task {
 
 export async function toggleSubtask(taskId: string, subtaskId: string, completed: boolean) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     const { rows } = await sql`SELECT subtasks FROM tasks WHERE id = ${taskId}`;
     if (!rows || rows.length === 0) return { success: false, error: "Task not found" };
     
@@ -48,12 +75,14 @@ export async function toggleSubtask(taskId: string, subtaskId: string, completed
 
 export async function addSubtask(taskId: string, title: string) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     const { rows } = await sql`SELECT subtasks FROM tasks WHERE id = ${taskId}`;
     if (!rows || rows.length === 0) return { success: false, error: "Task not found" };
     
     const subtasks: SubTask[] = rows[0].subtasks || [];
     const newSubtask: SubTask = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       title,
       completed: false
     };
@@ -71,6 +100,8 @@ export async function addSubtask(taskId: string, title: string) {
 
 export async function deleteSubtask(taskId: string, subtaskId: string) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     const { rows } = await sql`SELECT subtasks FROM tasks WHERE id = ${taskId}`;
     if (!rows || rows.length === 0) return { success: false, error: "Task not found" };
     
@@ -89,35 +120,39 @@ export async function deleteSubtask(taskId: string, subtaskId: string) {
 
 // --- TASK ACTIONS ---
 
-export async function getTasks(showArchived: boolean = false): Promise<Task[]> {
+const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+
+type TaskViewMode = 'all' | 'mine';
+
+export async function getTasks(
+  showArchived: boolean = false,
+  viewMode: TaskViewMode = 'all'
+): Promise<Task[]> {
   try {
     const session = await auth();
     if (!session?.user) return [];
 
-    const user = session.user as { role: string; id: string };
-    const isAdmin = user.role === 'admin';
+    const user = session.user as { role: string; id: string; canViewAllTasks?: boolean };
+    const canSeeAll = user.canViewAllTasks === true;
     const userId = user.id;
-
-    // Silent migration check for is_pinned (redundant if seed was run, but safe)
-    try {
-      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`;
-      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE`;
-    } catch {
-      // Ignore
-    }
+    const showOnlyMine = viewMode === 'mine' || !canSeeAll;
 
     let query;
-    if (isAdmin) {
-      query = showArchived 
-        ? sql`SELECT * FROM tasks ORDER BY deadline ASC`
-        : sql`SELECT * FROM tasks WHERE is_archived IS NOT TRUE ORDER BY deadline ASC`;
-    } else {
+    if (showOnlyMine) {
       query = showArchived
         ? sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} ORDER BY deadline ASC`
         : sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} AND is_archived IS NOT TRUE ORDER BY deadline ASC`;
+    } else {
+      query = showArchived
+        ? sql`SELECT * FROM tasks ORDER BY deadline ASC`
+        : sql`SELECT * FROM tasks WHERE is_archived IS NOT TRUE ORDER BY deadline ASC`;
     }
 
-    const { rows } = await query;
+    const { rows } = await withTimeout(query, 15000, { rows: [], rowCount: 0 });
     return rows.map(mapTask);
   } catch (error) {
     console.error("Error in getTasks:", error);
@@ -138,7 +173,8 @@ export async function getAllTasksForReports(): Promise<Task[]> {
 
 export async function archiveTask(taskId: string) {
   try {
-    console.log(`[Archive] Archiving single task: ${taskId}`);
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     await sql`UPDATE tasks SET is_archived = TRUE WHERE id = ${taskId}`;
     revalidatePath('/', 'page');
     revalidatePath('/calendar', 'page');
@@ -151,9 +187,9 @@ export async function archiveTask(taskId: string) {
 
 export async function bulkArchiveTasks(taskIds: string[]) {
   try {
-    console.log(`[Archive] Archiving ${taskIds.length} tasks:`, taskIds);
-    // SQLite/Postgres batch update logic
     for (const id of taskIds) {
+      const perm = await canModifyTask(id);
+      if (!perm.ok) continue;
       await sql`UPDATE tasks SET is_archived = TRUE WHERE id = ${id}`;
     }
     revalidatePath('/', 'page');
@@ -167,6 +203,8 @@ export async function bulkArchiveTasks(taskIds: string[]) {
 
 export async function toggleTaskPin(taskId: string, isPinned: boolean) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     await sql`UPDATE tasks SET is_pinned = ${isPinned} WHERE id = ${taskId}`;
     revalidatePath('/');
     return { success: true };
@@ -178,6 +216,8 @@ export async function toggleTaskPin(taskId: string, isPinned: boolean) {
 
 export async function deleteTask(taskId: string) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     await sql`DELETE FROM tasks WHERE id = ${taskId}`;
     revalidatePath('/');
     revalidatePath('/calendar');
@@ -191,6 +231,8 @@ export async function deleteTask(taskId: string) {
 export async function bulkDeleteTasks(taskIds: string[]) {
   try {
     for (const id of taskIds) {
+      const perm = await canModifyTask(id);
+      if (!perm.ok) continue;
       await sql`DELETE FROM tasks WHERE id = ${id}`;
     }
     revalidatePath('/');
@@ -204,15 +246,24 @@ export async function bulkDeleteTasks(taskIds: string[]) {
 
 export async function updateTask(taskId: string, formData: FormData) {
   try {
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const assignedUserId = formData.get('assignedUserId') as string;
-    const deadline = formData.get('deadline') as string;
-    const notes = formData.get('notes') as string;
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
+    const parsed = taskFormSchema.safeParse({
+      title: formData.get('title'),
+      description: formData.get('description') ?? '',
+      assignedUserId: formData.get('assignedUserId') || null,
+      deadline: formData.get('deadline') || '',
+      notes: formData.get('notes') ?? '',
+      frequency: formData.get('frequency') || 'one_time',
+      priority: formData.get('priority') || 'normal',
+    });
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return { success: false, error: first?.message ?? 'Datos inválidos' };
+    }
+    const { title, description, assignedUserId, deadline, notes, frequency, priority } = parsed.data;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
-    const frequency = formData.get('frequency') as string || 'one_time';
-    const priority = formData.get('priority') as string || 'normal';
 
     await sql`
       UPDATE tasks 
@@ -238,15 +289,26 @@ export async function updateTask(taskId: string, formData: FormData) {
 
 export async function createTask(formData: FormData) {
   try {
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const assignedUserId = formData.get('assignedUserId') as string;
-    const deadline = formData.get('deadline') as string;
-    const notes = formData.get('notes') as string;
+    const session = await auth();
+    if (!session?.user) return { success: false, error: 'No autenticado' };
+    const user = session.user as { id: string; role: string };
+    const parsed = taskFormSchema.safeParse({
+      title: formData.get('title'),
+      description: formData.get('description') ?? '',
+      assignedUserId: formData.get('assignedUserId') || null,
+      deadline: formData.get('deadline') || '',
+      notes: formData.get('notes') ?? '',
+      frequency: formData.get('frequency') || 'one_time',
+      priority: formData.get('priority') || 'normal',
+    });
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return { success: false, error: first?.message ?? 'Datos inválidos' };
+    }
+    let { assignedUserId, title, description, deadline, notes, frequency, priority } = parsed.data;
+    if (user.role !== 'admin') assignedUserId = user.id;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
-    const frequency = formData.get('frequency') as string || 'one_time';
-    const priority = formData.get('priority') as string || 'normal';
 
     await sql`
       INSERT INTO tasks (title, description, assigned_user_id, deadline, status, notes, created_at, subtasks, frequency, priority)
@@ -264,7 +326,8 @@ export async function createTask(formData: FormData) {
 
 export async function updateTaskStatus(taskId: string, newStatus: string) {
   try {
-    // 1. Get task details (title + subtasks)
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     const { rows: taskRows } = await sql`SELECT title, subtasks FROM tasks WHERE id = ${taskId}`;
     if (!taskRows || taskRows.length === 0) {
       return { success: false, error: "La tarea no existe." };
@@ -313,9 +376,10 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
   }
 }
 
-// ESTA ES LA FUNCIÓN CLAVE PARA TU NOTA ADHESIVA
 export async function updateTaskNotes(taskId: string, notes: string) {
   try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
     await sql`UPDATE tasks SET notes = ${notes} WHERE id = ${taskId}`;
     revalidatePath('/');
     return { success: true };

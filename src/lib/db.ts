@@ -18,7 +18,15 @@ let clientConnectPromise: Promise<void> | null = null;
 function getConnectionString(): string {
   const cs = process.env.POSTGRES_URL;
   if (!cs) throw new Error('POSTGRES_URL is not configured');
-  return cs;
+  try {
+    const url = new URL(cs);
+    if (!url.searchParams.has('connect_timeout')) {
+      url.searchParams.set('connect_timeout', '10');
+    }
+    return url.toString();
+  } catch {
+    return cs;
+  }
 }
 
 function isProbablyPooled(connectionString: string): boolean {

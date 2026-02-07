@@ -9,23 +9,26 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#14b8a6',
-    orientation: 'portrait',
+    orientation: 'any',
     icons: [
       {
         src: '/favicon.ico',
         sizes: 'any',
         type: 'image/x-icon',
+        purpose: 'any',
       },
       {
-        src: 'https://api.dicebear.com/7.x/shapes/png?seed=TaskPro&backgroundColor=14b8a6',
+        src: '/logo.png',
         sizes: '192x192',
         type: 'image/png',
+        purpose: 'any',
       },
-       {
-        src: 'https://api.dicebear.com/7.x/shapes/png?seed=TaskPro&backgroundColor=14b8a6',
+      {
+        src: '/logo.png',
         sizes: '512x512',
         type: 'image/png',
-      }
+        purpose: 'any maskable',
+      },
     ],
   }
 }

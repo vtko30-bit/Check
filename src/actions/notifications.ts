@@ -29,11 +29,14 @@ export async function getNotifications(userId: string): Promise<Notification[]> 
   }
 }
 
-export async function markAsRead(notificationId: string) {
+export async function markAsRead(notificationId: string, userId: string) {
   try {
-    await sql`UPDATE notifications SET is_read = TRUE WHERE id = ${notificationId}`;
+    const { rowCount } = await sql`
+      UPDATE notifications SET is_read = TRUE 
+      WHERE id = ${notificationId} AND user_id = ${userId}
+    `;
     revalidatePath('/');
-    return { success: true };
+    return { success: (rowCount ?? 0) > 0 };
   } catch (error) {
     console.error("Error marking notification as read:", error);
     return { success: false };

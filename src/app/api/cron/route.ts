@@ -1,13 +1,23 @@
 import { NextResponse } from 'next/server';
 import { sendDailyReport } from '@/lib/email';
-import { getAllTasksForReports } from '@/actions/tasks';
+import { getAllTasksForReports, checkOverdueTasks } from '@/actions/tasks';
 import { getUsers } from '@/actions/users';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+function isAuthorized(request: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return process.env.NODE_ENV !== 'production';
+  const auth = request.headers.get('authorization');
+  return auth === `Bearer ${secret}`;
+}
+
+export async function GET(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
   try {
-    // Para el reporte no usamos sesión: obtenemos todas las tareas
+    await checkOverdueTasks();
     const tasks = await getAllTasksForReports();
     const users = await getUsers();
     

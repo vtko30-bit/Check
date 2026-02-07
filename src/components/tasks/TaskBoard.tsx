@@ -29,6 +29,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar as CalendarIcon, MoreVertical } from "lucide-react";
 import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { updateTaskStatus } from "@/actions/tasks";
 import { TaskFormDialog } from "./TaskFormDialog";
 import { createPortal } from "react-dom";
@@ -230,7 +231,7 @@ export function TaskBoard({ tasks, users, currentUser }: TaskBoardProps) {
         if (currentTask && currentTask.status !== newStatus) {
             const result = await updateTaskStatus(taskId, newStatus as any);
             if (!result?.success && result?.error) {
-                alert(result.error);
+                toast.error(result.error);
             }
         }
     }

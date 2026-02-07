@@ -1,21 +1,28 @@
 import nodemailer from 'nodemailer';
 import { Task, User } from '@/types';
 
-// For demo purposes, we'll use Ethereal (fake SMTP) if no environment variables are present.
-// In production, you'd use process.env.SMTP_HOST, etc.
-
 export async function sendDailyReport(to: string, tasks: Task[], users: User[]) {
-  const account = await nodemailer.createTestAccount();
+  let transporter: nodemailer.Transporter;
 
-  const transporter = nodemailer.createTransport({
-    host: account.smtp.host,
-    port: account.smtp.port,
-    secure: account.smtp.secure,
-    auth: {
-      user: account.user,
-      pass: account.pass,
-    },
-  });
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  } else {
+    const account = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: account.smtp.host,
+      port: account.smtp.port,
+      secure: account.smtp.secure,
+      auth: { user: account.user, pass: account.pass },
+    });
+  }
 
   const pendingTasks = tasks.filter(t => t.status !== 'completed');
   const criticalTasks = pendingTasks.filter(t => {
@@ -74,8 +81,62 @@ export async function sendDailyReport(to: string, tasks: Task[], users: User[]) 
     html,
   });
 
-  console.log("Message sent: %s", info.messageId);
-  console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
-  
+  if (process.env.NODE_ENV === 'development') {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log("Preview URL:", previewUrl);
+  }
   return nodemailer.getTestMessageUrl(info);
+}
+
+export async function sendPasswordResetEmail(to: string, resetLink: string, userName?: string) {
+  let transporter: nodemailer.Transporter;
+
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  } else {
+    const account = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: account.smtp.host,
+      port: account.smtp.port,
+      secure: account.smtp.secure,
+      auth: { user: account.user, pass: account.pass },
+    });
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #14b8a6;">Recuperar contraseña - Check</h1>
+      <p>Hola${userName ? ` ${userName}` : ''},</p>
+      <p>Recibiste este correo porque solicitaste recuperar tu contraseña.</p>
+      <p>
+        <a href="${resetLink}" style="display: inline-block; background: #14b8a6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          Restablecer contraseña
+        </a>
+      </p>
+      <p>Este enlace expira en 1 hora. Si no solicitaste esto, ignora este correo.</p>
+      <p style="margin-top: 30px; font-size: 12px; color: #666;">
+        Mensaje automático de <strong>Check</strong>.
+      </p>
+    </div>
+  `;
+
+  const info = await transporter.sendMail({
+    from: '"Check" <noreply@check.local>',
+    to,
+    subject: 'Recuperar contraseña - Check',
+    html,
+  });
+
+  if (process.env.NODE_ENV === 'development') {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log("Password reset preview:", previewUrl);
+  }
 }

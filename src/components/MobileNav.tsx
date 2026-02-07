@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare } from 'lucide-react'; // <--- Agregamos CheckSquare
+import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationCenter } from './layout/NotificationCenter';
-import { handleSignOut } from '@/actions/auth';
 
 export function MobileNav({ user, companyLogo }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
@@ -21,7 +20,7 @@ export function MobileNav({ user, companyLogo }: {
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
     { href: '/calendar', label: 'Calendario', icon: Calendar },
-    { href: '/users', label: 'Usuarios', icon: Users },
+    ...((user.role === 'admin' || user.role === 'editor') ? [{ href: '/users', label: 'Usuarios', icon: Users }] : []),
     ...(user.role === 'admin' ? [{ href: '/settings', label: 'Configuración', icon: Settings }] : []),
   ];
 
@@ -67,10 +66,12 @@ export function MobileNav({ user, companyLogo }: {
 
             {/* Logo de la Empresa (Mobile) */}
             <div className="mb-6 px-1">
-              <div className="h-16 w-full rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2">
-                <div className="relative w-full h-full">
-                  <Image src={companyLogo || "/logo.png"} alt="Company Logo" fill className="object-contain" />
-                </div>
+              <div className="h-16 w-full rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2 overflow-hidden">
+                <img 
+                  src={companyLogo || "/logo.png"} 
+                  alt="Logo de Check" 
+                  className="max-h-full max-w-full object-contain"
+                />
               </div>
             </div>
 
@@ -111,7 +112,7 @@ export function MobileNav({ user, companyLogo }: {
 
             <div className="mt-auto pt-6 border-t border-slate-100">
                 <button
-                  onClick={() => handleSignOut()}
+                  onClick={() => signOut({ callbackUrl: '/login' })}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-sm font-bold text-red-600 hover:bg-red-50 w-full"
                 >
                   <LogOut className="w-5 h-5" />

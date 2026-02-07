@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
  
 export function LoginForm() {
@@ -18,26 +19,34 @@ export function LoginForm() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    const result = await signIn('credentials', {
-      redirect: false,
-      email,
-      password,
-    });
+    try {
+      const result = await signIn('credentials', {
+        redirect: false,
+        email,
+        password,
+      });
 
-    setPending(false);
+      if (result?.error) {
+        setErrorMessage('Credenciales inválidas.');
+        return;
+      }
 
-    if (result?.error) {
-      setErrorMessage('Credenciales inválidas.');
-      return;
+      router.push('/');
+    } catch (err) {
+      console.error('Login error:', err);
+      setErrorMessage(
+        err instanceof Error && err.message === 'Failed to fetch'
+          ? 'No se pudo conectar con el servidor. Verifica que la app esté corriendo y la base de datos configurada.'
+          : 'Error al iniciar sesión. Intenta de nuevo.'
+      );
+    } finally {
+      setPending(false);
     }
-
-    // Login correcto: redirigimos al dashboard
-    router.push('/');
   }
  
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
+    <form onSubmit={handleSubmit} className="space-y-0">
+      <div className="rounded-lg bg-slate-50/50 px-6 pb-6 pt-6">
         <h1 className="mb-3 text-2xl font-bold text-gray-900">
           Iniciar Sesión
         </h1>
@@ -61,12 +70,17 @@ export function LoginForm() {
             </div>
           </div>
           <div className="mt-4">
-            <label
-              className="mb-3 mt-5 block text-xs font-medium text-gray-900"
-              htmlFor="password"
-            >
-              Contraseña
-            </label>
+            <div className="flex justify-between items-center mb-1">
+              <label
+                className="block text-xs font-medium text-gray-900"
+                htmlFor="password"
+              >
+                Contraseña
+              </label>
+              <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 className="peer block w-full rounded-md border border-gray-200 py-[9px] pl-3 text-sm outline-2 placeholder:text-gray-500"

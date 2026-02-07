@@ -73,8 +73,8 @@ export function ProductivityStats({ tasks }: ProductivityStatsProps) {
         </div>
 
         {/* Gráfico Circular (Tamaño dinámico: 80px en móvil, 120px en desktop) */}
-        <div className="h-[80px] w-[80px] md:h-[120px] md:w-[120px] relative flex-shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[80px] w-[80px] md:h-[120px] md:w-[120px] relative flex-shrink-0 min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={80} minHeight={80}>
             <PieChart>
                 <Pie
                 data={data}

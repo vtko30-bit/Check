@@ -29,10 +29,13 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           const { email, password } = parsedCredentials.data;
           const user = await getUser(email);
           if (!user) return null;
+          if (user.is_active === false) return null;
           
           const passwordsMatch = await bcrypt.compare(password, user.password);
           
-          if (passwordsMatch) return user as User;
+          if (passwordsMatch) {
+            return { ...user, can_view_all_tasks: user.can_view_all_tasks === true } as User;
+          }
         }
         
         console.log('Invalid credentials');

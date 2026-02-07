@@ -446,19 +446,19 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                         </div>
 
                         <div className="flex items-center justify-between mt-1">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <TaskFormDialog 
                                 users={users} 
                                 task={task} 
                                 currentUser={currentUser}
                                 trigger={
-                                <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-full"><Edit className="w-4 h-4" /></button>
+                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-primary hover:bg-slate-50 rounded-lg"><Edit className="w-3.5 h-3.5" /><span>Editar</span></button>
                                 }
                             />
                             {!task.isArchived && (
-                                <button onClick={() => bulkArchiveTasks([task.id])} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full"><Archive className="w-4 h-4" /></button>
+                                <button onClick={() => bulkArchiveTasks([task.id])} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-slate-600 hover:bg-slate-50 rounded-lg"><Archive className="w-3.5 h-3.5" /><span>Archivar</span></button>
                             )}
-                            <button onClick={() => deleteTask(task.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => deleteTask(task.id)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /><span>Eliminar</span></button>
                         </div>
                         </div>
                     </div>
@@ -633,7 +633,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 }
                                 placeholder="Añadir nota..."
                                 />
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-1">
                                 {!task.isArchived && (
                                     <>
                                     <TaskFormDialog 
@@ -642,10 +642,11 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                         currentUser={currentUser}
                                         trigger={
                                         <button
-                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-md transition-all"
+                                            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-primary hover:bg-primary/5 rounded-md transition-all"
                                             title="Editar"
                                         >
-                                            <Edit className="w-4 h-4" />
+                                            <Edit className="w-3.5 h-3.5" />
+                                            <span>Editar</span>
                                         </button>
                                         }
                                     />
@@ -655,10 +656,11 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                             await bulkArchiveTasks([task.id]);
                                         }
                                         }}
-                                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
+                                        className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
                                         title="Archivar"
                                     >
-                                        <Archive className="w-4 h-4" />
+                                        <Archive className="w-3.5 h-3.5" />
+                                        <span>Archivar</span>
                                     </button>
                                     </>
                                 )}
@@ -668,10 +670,11 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                         await deleteTask(task.id);
                                     }
                                     }}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all"
+                                    className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all"
                                     title="Eliminar"
                                 >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Eliminar</span>
                                 </button>
                                 </div>
                             </div>
