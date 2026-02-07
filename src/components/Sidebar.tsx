@@ -6,8 +6,6 @@ import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-
 export function Sidebar({ user, companyLogo }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
   companyLogo?: string | null
@@ -47,15 +45,7 @@ export function Sidebar({ user, companyLogo }: {
         </div>
 
         <div className="mb-8 px-2 py-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="shrink-0 w-9 h-9">
-            <Avatar className="h-9 w-9 border-2 border-primary/10">
-            <AvatarImage src={user.image || ''} />
-            <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
-              {user.name?.slice(0, 2).toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
-          </div>
-          <div className="flex flex-col overflow-hidden min-w-0">
+          <div className="flex flex-col overflow-hidden min-w-0 flex-1">
             <span className="text-sm font-bold text-slate-800 truncate">{user.name}</span>
             <span className="text-[10px] text-slate-400 truncate">{user.email}</span>
           </div>

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createTask, updateTask } from '@/actions/tasks';
 import { Plus, X, ListTodo, Calendar as CalendarIcon, User as UserIcon, FileText, StickyNote, RefreshCw, Edit } from 'lucide-react';
+import { toast } from 'sonner';
 import { SubTask, User, Task } from '@/types';
 
 interface TaskFormDialogProps {
@@ -22,19 +23,27 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
   const [error, setError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<{title: string}[]>(task?.subtasks?.map(st => ({ title: st.title })) || []);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
-  const [frequency, setFrequency] = useState(task?.frequency || 'one_time');
+  const [frequency, setFrequency] = useState(
+    task?.frequency === 'monday' ? 'weekly_1' : (task?.frequency || 'one_time')
+  );
 
   const isAdmin = currentUser?.role === 'admin';
   const isDateRange = frequency === 'date_range';
 
   useEffect(() => {
-    if (open) setFrequency(task?.frequency || 'one_time');
+    if (open) setFrequency(task?.frequency === 'monday' ? 'weekly_1' : (task?.frequency || 'one_time'));
   }, [open, task?.frequency]);
   const isEdit = !!task;
 
   const addSubtaskToList = () => {
-    if (!newSubtaskTitle.trim()) return;
-    setSubtasks([...subtasks, { title: newSubtaskTitle.trim() }]);
+    const title = newSubtaskTitle.trim();
+    if (!title) return;
+    const exists = subtasks.some(st => st.title.toLowerCase() === title.toLowerCase());
+    if (exists) {
+      toast.error('Ya existe una subtarea con ese nombre');
+      return;
+    }
+    setSubtasks([...subtasks, { title }]);
     setNewSubtaskTitle('');
   };
 
@@ -52,15 +61,23 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
       formData.set('assignedUserId', currentUser.id);
     }
 
-    // Add subtasks to formData as JSON with IDs
-    const subtasksWithIds: SubTask[] = subtasks.map(st => {
-      const existing = task?.subtasks?.find(est => est.title === st.title);
-      return {
-        id: existing?.id || crypto.randomUUID(),
-        title: st.title,
-        completed: existing?.completed || false
-      };
-    });
+    // Add subtasks to formData as JSON with IDs (deduplicar por título)
+    const seen = new Set<string>();
+    const subtasksWithIds: SubTask[] = subtasks
+      .filter(st => {
+        const key = st.title.toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(st => {
+        const existing = task?.subtasks?.find(est => est.title.toLowerCase() === st.title.toLowerCase());
+        return {
+          id: existing?.id || crypto.randomUUID(),
+          title: st.title.trim(),
+          completed: existing?.completed || false
+        };
+      });
     formData.append('subtasks', JSON.stringify(subtasksWithIds));
     
     try {
@@ -157,8 +174,14 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
               >
                 <option value="one_time">Una vez</option>
                 <option value="daily">Diario</option>
-                <option value="weekly">Semanal</option>
-                <option value="monday">Todos los Lunes</option>
+                <option value="weekly">Semanal (mismo día que vencimiento)</option>
+                <option value="weekly_0">Semanal - Domingos</option>
+                <option value="weekly_1">Semanal - Lunes</option>
+                <option value="weekly_2">Semanal - Martes</option>
+                <option value="weekly_3">Semanal - Miércoles</option>
+                <option value="weekly_4">Semanal - Jueves</option>
+                <option value="weekly_5">Semanal - Viernes</option>
+                <option value="weekly_6">Semanal - Sábados</option>
                 <option value="monthly">Mensual</option>
                 <option value="date_range">Rango de fechas</option>
               </select>

@@ -25,8 +25,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Task, User } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar as CalendarIcon, MoreVertical } from "lucide-react";
+import { Calendar as CalendarIcon, ListChecks, MoreVertical } from "lucide-react";
 import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,9 +47,16 @@ function TaskCard({ task, users, currentUser, isOverlay }: { task: Task, users: 
       )}
     >
         <div className="flex justify-between items-start mb-2">
-            <span className="font-semibold text-sm line-clamp-2 text-slate-800 dark:text-slate-100 leading-tight">
-                {task.title}
-            </span>
+            <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                <span className="font-semibold text-sm line-clamp-2 text-slate-800 dark:text-slate-100 leading-tight">
+                    {task.title}
+                </span>
+                {task.subtasks?.length ? (
+                    <span className="text-[9px] bg-primary/15 text-primary font-semibold px-1.5 py-0.5 rounded w-fit flex items-center gap-1 border border-primary/40 shrink-0" title="Tiene checklist">
+                        <ListChecks className="w-2.5 h-2.5" /> {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                    </span>
+                ) : null}
+            </div>
             {!isOverlay && (
                 <div onPointerDown={(e) => e.stopPropagation()}>
                     <TaskFormDialog 
@@ -73,10 +79,7 @@ function TaskCard({ task, users, currentUser, isOverlay }: { task: Task, users: 
                 {formatDate(task.deadline)}
              </div>
              {assignee && (
-                <Avatar className="h-5 w-5 border border-slate-200 dark:border-slate-700">
-                    <AvatarImage src={assignee.avatarUrl} />
-                    <AvatarFallback className="text-[9px]">{assignee.name?.slice(0, 1)}</AvatarFallback>
-                </Avatar>
+                <span className="truncate max-w-[80px]">{assignee.name}</span>
              )}
         </div>
     </div>

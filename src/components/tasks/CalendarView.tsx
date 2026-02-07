@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Task } from '@/types';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -119,8 +119,14 @@ export function CalendarView({ tasks }: CalendarViewProps) {
               return dayOfWeek === tDate.getDay();
             }
 
+            // weekly_0=Dom, weekly_1=Lun, ... weekly_6=Sab
+            // monday = compatibilidad (Lunes)
+            const weeklyMatch = t.frequency.match(/^weekly_(\d)$/);
+            if (weeklyMatch) {
+              return dayOfWeek === parseInt(weeklyMatch[1], 10);
+            }
             if (t.frequency === 'monday') {
-              return dayOfWeek === 1; // 1 is Monday
+              return dayOfWeek === 1;
             }
 
             if (t.frequency === 'monthly') {
@@ -151,12 +157,13 @@ export function CalendarView({ tasks }: CalendarViewProps) {
                     <div 
                         key={t.id + dateString} // Add dateString to key for recurring occurrences
                         className={cn(
-                            "text-[10px] md:text-xs px-1 md:px-2 py-0.5 md:py-1 rounded border truncate font-medium cursor-pointer shadow-sm hover:scale-[1.02] transition-transform",
+                            "text-[10px] md:text-xs px-1 md:px-2 py-0.5 md:py-1 rounded border truncate font-medium cursor-pointer shadow-sm hover:scale-[1.02] transition-transform flex items-center gap-1",
                             getStatusColor(t.status)
                         )}
-                        title={t.title}
+                        title={t.subtasks?.length ? `${t.title} (checklist: ${t.subtasks.filter(s => s.completed).length}/${t.subtasks.length})` : t.title}
                         onClick={() => setSelectedTask(t)}
                     >
+                    {t.subtasks?.length ? <ListChecks className="w-2.5 h-2.5 shrink-0 text-primary" /> : null}
                     {t.title}
                     </div>
                 ))}

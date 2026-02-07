@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Task, User } from "@/types";
 import { formatDate } from "@/lib/date";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   updateTaskStatus,
   updateTaskNotes,
@@ -24,6 +23,7 @@ import {
   LayoutList,
   Kanban, 
   List,
+  ListChecks,
   AlertCircle,
   AlertTriangle,
   ArrowUpDown,
@@ -38,7 +38,14 @@ const frequencyLabels: Record<string, string> = {
   one_time: "Una vez",
   daily: "Diario",
   weekly: "Semanal",
-  monday: "Lunes",
+  weekly_0: "Domingos",
+  weekly_1: "Lunes",
+  weekly_2: "Martes",
+  weekly_3: "Miércoles",
+  weekly_4: "Jueves",
+  weekly_5: "Viernes",
+  weekly_6: "Sábados",
+  monday: "Lunes", // compatibilidad
   monthly: "Mensual",
   date_range: "Rango de fechas",
 };
@@ -390,13 +397,19 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <h3 
-                                className="font-bold text-slate-900 dark:text-slate-100 leading-tight cursor-pointer"
-                                onClick={() => setSelectedTask(task)}
-                                >
-                                {task.title}
-                                </h3>
-                                {/* ETIQUETAS MÓVIL */}
+                                <div className="flex items-center gap-2">
+                                    <h3 
+                                    className="font-bold text-slate-900 dark:text-slate-100 leading-tight cursor-pointer"
+                                    onClick={() => setSelectedTask(task)}
+                                    >
+                                    {task.title}
+                                    </h3>
+                                    {task.subtasks?.length ? (
+                                        <span className="text-[8px] bg-primary/15 text-primary font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 border border-primary/40 shrink-0" title="Tiene checklist">
+                                            <ListChecks className="w-3 h-3" /> {task.subtasks.filter((s: {completed?: boolean}) => s.completed).length}/{task.subtasks.length}
+                                        </span>
+                                    ) : null}
+                                </div>
                                 {isOverdue ? (
                                     <span className="text-[8px] bg-rose-50 text-rose-600 font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 border border-rose-100">
                                         Vencido
@@ -415,13 +428,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 <CalendarIcon className="w-3 h-3" /> {formatDate(task.deadline)}
                                 </span>
                                 {assignee && (
-                                <div className="flex items-center gap-1">
-                                    <Avatar className="h-4 w-4 ring-1 ring-white">
-                                    <AvatarImage src={assignee.avatarUrl} />
-                                    <AvatarFallback>{assignee.name?.slice(0, 1)}</AvatarFallback>
-                                    </Avatar>
                                     <span className="truncate max-w-[80px]">{assignee.name}</span>
-                                </div>
                                 )}
                             </div>
                             </div>
@@ -540,13 +547,20 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             <td className="px-4 md:px-6 py-1.5 font-medium align-top">
                             <div className="flex flex-col gap-1.5">
                                 <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                    <span 
-                                    className="text-[15px] font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-primary hover:underline transition-colors"
-                                    onClick={() => setSelectedTask(task)}
-                                    >
-                                    {task.title}
-                                    </span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span 
+                                        className="text-[15px] font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-primary hover:underline transition-colors"
+                                        onClick={() => setSelectedTask(task)}
+                                        >
+                                        {task.title}
+                                        </span>
+                                        {task.subtasks?.length ? (
+                                            <span className="text-[9px] bg-primary/15 text-primary font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 border border-primary/40 shrink-0" title="Tiene checklist">
+                                                <ListChecks className="w-2.5 h-2.5" /> {task.subtasks.filter((s: {completed?: boolean}) => s.completed).length}/{task.subtasks.length}
+                                            </span>
+                                        ) : null}
+                                    </div>
                                 </div>
                                 {isOverdue ? (
                                      <span className="text-[9px] text-rose-600 font-bold px-1.5 py-0.5 bg-rose-50 rounded uppercase tracking-wider flex items-center gap-1 border border-rose-100 w-fit">
@@ -566,19 +580,9 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                             </div>
                             </td>
                             <td className="px-4 md:px-6 py-1.5">
-                            <div className="flex items-center gap-2">
-                                {assignee && (
-                                <Avatar className="h-6 w-6 ring-1 ring-white shadow-sm">
-                                    <AvatarImage src={assignee.avatarUrl} />
-                                    <AvatarFallback>
-                                    {assignee.name?.slice(0, 2)}
-                                    </AvatarFallback>
-                                </Avatar>
-                                )}
-                                <span className="text-slate-600 dark:text-slate-400 truncate max-w-[100px]">
+                            <span className="text-slate-600 dark:text-slate-400 truncate max-w-[100px]">
                                 {assignee?.name || "Sin asignar"}
-                                </span>
-                            </div>
+                            </span>
                             </td>
                             <td
                             className={cn(

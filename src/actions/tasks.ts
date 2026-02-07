@@ -12,7 +12,7 @@ const taskFormSchema = z.object({
   assignedUserId: z.string().optional().nullable(),
   deadline: z.string().optional(),
   notes: z.string().optional().default(''),
-  frequency: z.enum(['one_time', 'daily', 'weekly', 'monday', 'monthly', 'date_range']).default('one_time'),
+  frequency: z.enum(['one_time', 'daily', 'weekly', 'weekly_0', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_6', 'monday', 'monthly', 'date_range']).default('one_time'),
   startDate: z.string().optional(),
   priority: z.enum(['normal', 'urgent']).default('normal'),
 });
@@ -53,6 +53,16 @@ function mapTask(row: QueryResultRow): Task {
 
 // --- SUBTASKS ACTIONS ---
 
+function dedupeSubtasks(subtasks: SubTask[]): SubTask[] {
+  const seen = new Set<string>();
+  return subtasks.filter(st => {
+    const key = (st.title || '').trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function toggleSubtask(taskId: string, subtaskId: string, completed: boolean) {
   try {
     const perm = await canModifyTask(taskId);
@@ -83,9 +93,15 @@ export async function addSubtask(taskId: string, title: string) {
     if (!rows || rows.length === 0) return { success: false, error: "Task not found" };
     
     const subtasks: SubTask[] = rows[0].subtasks || [];
+    const titleNorm = title.trim().toLowerCase();
+    const alreadyExists = subtasks.some((st: SubTask) => st.title.toLowerCase() === titleNorm);
+    if (alreadyExists) {
+      return { success: false, error: "Ya existe una subtarea con ese nombre" };
+    }
+
     const newSubtask: SubTask = {
       id: crypto.randomUUID(),
-      title,
+      title: title.trim(),
       completed: false
     };
 
@@ -266,7 +282,7 @@ export async function updateTask(taskId: string, formData: FormData) {
     }
     const { title, description, assignedUserId, deadline, notes, frequency, startDate, priority } = parsed.data;
     const subtasksJson = formData.get('subtasks') as string;
-    const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
+    const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
     await sql`
@@ -314,7 +330,7 @@ export async function createTask(formData: FormData) {
     let { assignedUserId, title, description, deadline, notes, frequency, startDate, priority } = parsed.data;
     if (user.role !== 'admin') assignedUserId = user.id;
     const subtasksJson = formData.get('subtasks') as string;
-    const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
+    const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
     try {
