@@ -317,17 +317,38 @@ export async function createTask(formData: FormData) {
     const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
-    await sql`
-      INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
-      VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
-    `;
+    try {
+      await sql`
+        INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
+        VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
+      `;
+    } catch (insertErr: unknown) {
+      const msg = String(insertErr instanceof Error ? insertErr.message : '').toLowerCase();
+      if (msg.includes('start_date')) {
+        try {
+          await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE`;
+          await sql`
+            INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
+            VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
+          `;
+        } catch (retryErr) {
+          await sql`
+            INSERT INTO tasks (title, description, assigned_user_id, deadline, status, notes, created_at, subtasks, frequency, priority)
+            VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
+          `;
+        }
+      } else {
+        throw insertErr;
+      }
+    }
 
     revalidatePath('/');
     revalidatePath('/calendar');
     return { success: true };
   } catch (error) {
     console.error("Error creating task:", error);
-    return { success: false, error: "Failed to create task" };
+    const msg = error instanceof Error ? error.message : '';
+    return { success: false, error: process.env.NODE_ENV === 'development' ? msg : "Failed to create task" };
   }
 }
 
