@@ -73,36 +73,55 @@ export async function createUser(formData: FormData) {
       SELECT 1 FROM users WHERE email = ${email} LIMIT 1
     `;
 
-    if (existing.rowCount && existing.rowCount > 0) {
+    if (existing.rows?.length > 0) {
       return {
         success: false,
         error: 'Ya existe un usuario registrado con ese correo.',
       };
     }
 
-    await sql`
-      INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
-      VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
-    `;
+    try {
+      await sql`
+        INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
+        VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
+      `;
+    } catch (insertError: any) {
+      const insertMsg = typeof insertError?.message === 'string' ? insertError.message : '';
+      if (insertMsg.includes('can_view_all_tasks') && insertMsg.includes('does not exist')) {
+        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_all_tasks BOOLEAN DEFAULT FALSE`;
+        await sql`
+          INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
+          VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
+        `;
+      } else {
+        throw insertError;
+      }
+    }
 
     revalidatePath('/users');
     revalidatePath('/'); // For assignments dropdown
 
     return { success: true };
   } catch (error: any) {
-    // Manejo defensivo por si el SELECT anterior no detecta un duplicado
     const message = typeof error?.message === 'string' ? error.message : '';
-    if (message.includes('users_email_key')) {
+    console.error('Error al crear usuario:', error);
+
+    if (message.includes('users_email_key') || message.includes('duplicate key') || message.includes('unique constraint')) {
+      return { success: false, error: 'Ya existe un usuario registrado con ese correo.' };
+    }
+    if (message.includes('column') && message.includes('does not exist')) {
       return {
         success: false,
-        error: 'Ya existe un usuario registrado con ese correo.',
+        error: 'La base de datos necesita actualizarse. Ejecuta el seed en desarrollo o contacta al administrador.',
       };
     }
+    if (message.includes('POSTGRES_URL') || message.includes('connection') || message.includes('connect')) {
+      return { success: false, error: 'Error de conexión a la base de datos.' };
+    }
 
-    console.error('Error al crear usuario:', error);
     return {
       success: false,
-      error: 'No se pudo crear el usuario. Intenta de nuevo más tarde.',
+      error: process.env.NODE_ENV === 'development' ? message : 'No se pudo crear el usuario. Intenta de nuevo más tarde.',
     };
   }
 }
