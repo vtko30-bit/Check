@@ -66,23 +66,25 @@ export function MobileNav({ user, companyLogo }: {
 
             {/* Logo de la Empresa (Mobile) */}
             <div className="mb-6 px-1">
-              <div className="h-16 w-full rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2 overflow-hidden">
+              <div className="h-16 w-full max-w-[200px] rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2 overflow-hidden">
                 <img 
                   src={companyLogo || "/logo.png"} 
                   alt="Logo de Check" 
-                  className="max-h-full max-w-full object-contain"
+                  className="max-h-12 max-w-full object-contain w-auto"
                 />
               </div>
             </div>
 
             <div className="mb-8 p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+              <div className="shrink-0 w-10 h-10">
               <Avatar className="h-10 w-10 border-2 border-primary/10">
                 <AvatarImage src={user.image || ''} />
                 <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
                   {user.name?.slice(0, 2).toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col overflow-hidden">
+              </div>
+              <div className="flex flex-col overflow-hidden min-w-0">
                 <span className="text-sm font-bold text-slate-800 truncate">{user.name}</span>
                 <span className="text-[10px] text-slate-400 truncate">{user.email}</span>
               </div>
