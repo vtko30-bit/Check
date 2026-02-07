@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,14 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
   const [error, setError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<{title: string}[]>(task?.subtasks?.map(st => ({ title: st.title })) || []);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [frequency, setFrequency] = useState(task?.frequency || 'one_time');
 
   const isAdmin = currentUser?.role === 'admin';
+  const isDateRange = frequency === 'date_range';
+
+  useEffect(() => {
+    if (open) setFrequency(task?.frequency || 'one_time');
+  }, [open, task?.frequency]);
   const isEdit = !!task;
 
   const addSubtaskToList = () => {
@@ -119,37 +125,22 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
               />
             </div>
 
-            {/* Asignación y Fecha */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="assignedUserId" className="text-slate-600 font-semibold flex items-center gap-2">
-                  <UserIcon className="w-3.5 h-3.5" /> Asignar a
-                </Label>
-                <select 
-                  id="assignedUserId" 
-                  name="assignedUserId" 
-                  defaultValue={task?.assignedUserId || currentUser?.id}
-                  disabled={!isAdmin}
-                  className="flex h-12 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed" 
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="deadline" className="text-slate-600 font-semibold flex items-center gap-2">
-                  <CalendarIcon className="w-3.5 h-3.5" /> Vencimiento
-                </Label>
-                <Input 
-                  id="deadline" 
-                  name="deadline" 
-                  type="date" 
-                  defaultValue={task?.deadline}
-                  className="h-12 border-slate-200 focus:border-primary focus:ring-primary/20" 
-                  required 
-                />
-              </div>
+            {/* Asignación */}
+            <div className="space-y-1.5">
+              <Label htmlFor="assignedUserId" className="text-slate-600 font-semibold flex items-center gap-2">
+                <UserIcon className="w-3.5 h-3.5" /> Asignar a
+              </Label>
+              <select 
+                id="assignedUserId" 
+                name="assignedUserId" 
+                defaultValue={task?.assignedUserId || currentUser?.id}
+                disabled={!isAdmin}
+                className="flex h-12 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed" 
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
             </div>
 
             {/* Frecuencia */}
@@ -160,7 +151,8 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
               <select 
                 id="frequency" 
                 name="frequency" 
-                defaultValue={task?.frequency || 'one_time'}
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value)}
                 className="flex h-12 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" 
               >
                 <option value="one_time">Una vez</option>
@@ -168,7 +160,56 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
                 <option value="weekly">Semanal</option>
                 <option value="monday">Todos los Lunes</option>
                 <option value="monthly">Mensual</option>
+                <option value="date_range">Rango de fechas</option>
               </select>
+            </div>
+
+            {/* Fechas: una sola o rango según frecuencia */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isDateRange ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="startDate" className="text-slate-600 font-semibold flex items-center gap-2">
+                      <CalendarIcon className="w-3.5 h-3.5" /> Desde
+                    </Label>
+                    <Input 
+                      id="startDate" 
+                      name="startDate" 
+                      type="date" 
+                      defaultValue={task?.startDate}
+                      className="h-12 border-slate-200 focus:border-primary focus:ring-primary/20" 
+                      required={isDateRange}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="deadline" className="text-slate-600 font-semibold flex items-center gap-2">
+                      <CalendarIcon className="w-3.5 h-3.5" /> Hasta
+                    </Label>
+                    <Input 
+                      id="deadline" 
+                      name="deadline" 
+                      type="date" 
+                      defaultValue={task?.deadline}
+                      className="h-12 border-slate-200 focus:border-primary focus:ring-primary/20" 
+                      required 
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="deadline" className="text-slate-600 font-semibold flex items-center gap-2">
+                    <CalendarIcon className="w-3.5 h-3.5" /> Vencimiento
+                  </Label>
+                  <Input 
+                    id="deadline" 
+                    name="deadline" 
+                    type="date" 
+                    defaultValue={task?.deadline}
+                    className="h-12 border-slate-200 focus:border-primary focus:ring-primary/20" 
+                    required 
+                  />
+                </div>
+              )}
             </div>
 
             {/* Descripción */}

@@ -113,6 +113,7 @@ export async function GET(request: Request) {
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`;
+        await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE`;
     } catch (e) {
         console.log("Error adding columns to tasks:", e);
     }

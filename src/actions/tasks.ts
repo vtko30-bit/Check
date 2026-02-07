@@ -12,7 +12,8 @@ const taskFormSchema = z.object({
   assignedUserId: z.string().optional().nullable(),
   deadline: z.string().optional(),
   notes: z.string().optional().default(''),
-  frequency: z.enum(['one_time', 'daily', 'weekly', 'monday', 'monthly']).default('one_time'),
+  frequency: z.enum(['one_time', 'daily', 'weekly', 'monday', 'monthly', 'date_range']).default('one_time'),
+  startDate: z.string().optional(),
   priority: z.enum(['normal', 'urgent']).default('normal'),
 });
 
@@ -43,6 +44,7 @@ function mapTask(row: QueryResultRow): Task {
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
     subtasks: row.subtasks || [],
     frequency: row.frequency || 'one_time',
+    startDate: row.start_date ? new Date(row.start_date).toISOString().split('T')[0] : undefined,
     priority: row.priority || 'normal',
     isArchived: !!row.is_archived,
     isPinned: !!row.is_pinned
@@ -255,22 +257,25 @@ export async function updateTask(taskId: string, formData: FormData) {
       deadline: formData.get('deadline') || '',
       notes: formData.get('notes') ?? '',
       frequency: formData.get('frequency') || 'one_time',
+      startDate: formData.get('startDate') || undefined,
       priority: formData.get('priority') || 'normal',
     });
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
-    const { title, description, assignedUserId, deadline, notes, frequency, priority } = parsed.data;
+    const { title, description, assignedUserId, deadline, notes, frequency, startDate, priority } = parsed.data;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
 
+    const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
     await sql`
       UPDATE tasks 
       SET title = ${title}, 
           description = ${description}, 
           assigned_user_id = ${assignedUserId || null}, 
           deadline = ${deadline}, 
+          start_date = ${startDateVal}, 
           notes = ${notes}, 
           subtasks = ${JSON.stringify(subtasks)}, 
           frequency = ${frequency}, 
@@ -299,20 +304,22 @@ export async function createTask(formData: FormData) {
       deadline: formData.get('deadline') || '',
       notes: formData.get('notes') ?? '',
       frequency: formData.get('frequency') || 'one_time',
+      startDate: formData.get('startDate') || undefined,
       priority: formData.get('priority') || 'normal',
     });
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
-    let { assignedUserId, title, description, deadline, notes, frequency, priority } = parsed.data;
+    let { assignedUserId, title, description, deadline, notes, frequency, startDate, priority } = parsed.data;
     if (user.role !== 'admin') assignedUserId = user.id;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = subtasksJson ? JSON.parse(subtasksJson) : [];
 
+    const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
     await sql`
-      INSERT INTO tasks (title, description, assigned_user_id, deadline, status, notes, created_at, subtasks, frequency, priority)
-      VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
+      INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
+      VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
     `;
 
     revalidatePath('/');

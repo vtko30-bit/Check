@@ -104,8 +104,8 @@ export function CalendarView({ tasks }: CalendarViewProps) {
             const tDate = new Date(t.deadline);
             const tDateString = t.deadline;
 
-            // Don't show recurring tasks before their first deadline
-            if (dateString < tDateString) return false;
+            // Don't show recurring tasks before their first deadline (except date_range)
+            if (t.frequency !== 'date_range' && dateString < tDateString) return false;
 
             // One-time tasks
             if (t.frequency === 'one_time' || !t.frequency) {
@@ -125,6 +125,11 @@ export function CalendarView({ tasks }: CalendarViewProps) {
 
             if (t.frequency === 'monthly') {
               return day === tDate.getDate();
+            }
+
+            if (t.frequency === 'date_range' && t.startDate) {
+              const start = t.startDate;
+              return dateString >= start && dateString <= tDateString;
             }
 
             return false;

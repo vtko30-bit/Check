@@ -29,6 +29,7 @@ export interface Task {
   createdAt: string;
   subtasks: SubTask[];
   frequency: string;
+  startDate?: string;
   priority: 'normal' | 'urgent';
   isArchived: boolean;
   isPinned: boolean;

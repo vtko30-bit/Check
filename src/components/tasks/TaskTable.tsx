@@ -40,6 +40,7 @@ const frequencyLabels: Record<string, string> = {
   weekly: "Semanal",
   monday: "Lunes",
   monthly: "Mensual",
+  date_range: "Rango de fechas",
 };
 
 interface TaskTableProps {
@@ -591,7 +592,9 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     isOverdue ? "text-rose-500 font-bold" : isUrgent ? "text-amber-500" : "text-slate-500"
                                 )}>
                                 <CalendarIcon className={cn("w-3.5 h-3.5", isOverdue ? "text-rose-500" : "text-slate-400")} />
-                                {formatDate(task.deadline)}
+                                {task.frequency === "date_range" && task.startDate
+                                  ? `${formatDate(task.startDate)} - ${formatDate(task.deadline)}`
+                                  : formatDate(task.deadline)}
                                 </span>
                                 {task.frequency &&
                                 task.frequency !== "one_time" && (
