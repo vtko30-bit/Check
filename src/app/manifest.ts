@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Gestor de Tareas Pro',
-    short_name: 'TaskPro',
-    description: 'Gestión de tareas moderna y eficiente',
+    name: 'Check',
+    short_name: 'Check',
+    description: 'Gestión de tareas minimalista',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
@@ -12,14 +12,14 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'any',
     icons: [
       {
-        src: '/favicon.ico',
-        sizes: 'any',
-        type: 'image/x-icon',
+        src: '/check-logo.png',
+        sizes: '192x192',
+        type: 'image/png',
         purpose: 'any',
       },
       {
         src: '/check-logo.png',
-        sizes: '192x192',
+        sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },

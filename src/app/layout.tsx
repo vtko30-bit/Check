@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "Check",
   description: "Gestión de tareas minimalista",
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/check-logo.png',
+    apple: '/check-logo.png',
+  },
 };
 
 export const viewport: Viewport = {
