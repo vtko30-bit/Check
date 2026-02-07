@@ -64,6 +64,11 @@ export function UserList({ initialUsers, currentUser }: { initialUsers: User[]; 
       open={modalOpen}
       onClose={() => { setModalOpen(false); setSelectedUser(null); }}
       onSaved={() => router.refresh()}
+      onSaveAndClose={() => {
+        router.refresh();
+        setModalOpen(false);
+        setSelectedUser(null);
+      }}
       currentUserRole={currentUser?.role}
     />
     </>

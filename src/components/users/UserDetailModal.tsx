@@ -28,10 +28,11 @@ interface UserDetailModalProps {
   open: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  onSaveAndClose?: () => void;
   currentUserRole?: string;
 }
 
-export function UserDetailModal({ user, open, onClose, onSaved, currentUserRole }: UserDetailModalProps) {
+export function UserDetailModal({ user, open, onClose, onSaved, onSaveAndClose, currentUserRole }: UserDetailModalProps) {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +84,8 @@ export function UserDetailModal({ user, open, onClose, onSaved, currentUserRole 
         return;
       }
       toast.success('Usuario actualizado correctamente');
-      setEditing(false);
-      onSaved?.();
+      const closeFn = onSaveAndClose ?? (() => { onSaved?.(); onClose(); });
+      setTimeout(closeFn, 0);
     } finally {
       setLoading(false);
     }

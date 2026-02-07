@@ -39,7 +39,7 @@ export function Sidebar({ user, companyLogo }: {
         <div className="mb-6 px-2">
           <div className="h-16 w-full max-w-[200px] rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-2 overflow-hidden">
             <img 
-              src={companyLogo || "/logo.png"} 
+              src={companyLogo || "/check-logo.png"} 
               alt="Logo de Check" 
               className="max-h-12 max-w-full object-contain w-auto"
             />

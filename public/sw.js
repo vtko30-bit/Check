@@ -10,7 +10,7 @@ self.addEventListener('install', (event) => {
       return cache.addAll([
         '/manifest.webmanifest',
         '/favicon.ico',
-        '/logo.png',
+        '/check-logo.png',
       ]).catch(() => {}).then(() => self.skipWaiting());
     })
   );

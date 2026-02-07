@@ -46,7 +46,7 @@ export function LoginForm() {
  
   return (
     <form onSubmit={handleSubmit} className="space-y-0">
-      <div className="rounded-lg bg-slate-50/50 px-6 pb-6 pt-6">
+      <div className="rounded-lg bg-white px-6 pb-6 pt-6">
         <h1 className="mb-3 text-2xl font-bold text-gray-900">
           Iniciar Sesión
         </h1>
