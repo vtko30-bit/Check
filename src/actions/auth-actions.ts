@@ -30,7 +30,7 @@ export async function requestPasswordReset(formData: FormData) {
 
     await sql`
       INSERT INTO password_reset_tokens (user_id, token, expires_at)
-      VALUES (${user.id}, ${token}, ${expiresAt})
+      VALUES (${user.id}, ${token}, ${expiresAt.toISOString()})
     `;
 
     const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://localhost:3000';
