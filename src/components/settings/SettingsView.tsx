@@ -26,9 +26,9 @@ export function SettingsView({ currentLogo }: SettingsViewProps) {
        return;
     }
 
-    // Validate size (limit to 1MB for Base64 storage)
-    if (file.size > 1024 * 1024) {
-      alert('La imagen es demasiado grande. El límite es 1MB.');
+    // Validate size (400KB max - Base64 ~33% overhead; Server Action payload limit)
+    if (file.size > 400 * 1024) {
+      alert('La imagen es demasiado grande. El límite es 400KB. Usa una imagen más pequeña o compáctala.');
       return;
     }
 
@@ -57,7 +57,8 @@ export function SettingsView({ currentLogo }: SettingsViewProps) {
     } catch (error) {
       console.error(error);
       setStatus('error');
-      setErrorMessage('Error inesperado. Intenta de nuevo.');
+      const msg = error instanceof Error ? error.message : 'Error inesperado. Intenta de nuevo.';
+      setErrorMessage(msg.includes('Payload') || msg.includes('body') || msg.includes('size') ? 'La imagen es demasiado grande. Usa una imagen más pequeña (< 400KB).' : msg);
     } finally {
       setLoading(false);
     }
@@ -96,7 +97,7 @@ export function SettingsView({ currentLogo }: SettingsViewProps) {
               <ul className="text-xs text-slate-500 space-y-1.5 list-disc pl-4">
                 <li>Formato PNG, SVG o JPG.</li>
                 <li>Fondo transparente preferiblemente.</li>
-                <li>Tamaño máximo de 1MB (optimizado).</li>
+                <li>Tamaño máximo de 400KB (la imagen se guarda en la base de datos).</li>
                 <li>Relación de aspecto rectangular o cuadrada.</li>
               </ul>
             </div>

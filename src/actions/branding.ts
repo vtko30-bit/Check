@@ -34,7 +34,7 @@ export async function updateBranding(logoBase64: string) {
     // Check if key exists
     const exists = await sql`SELECT id FROM settings WHERE key = 'company_logo'`;
     
-    if (exists.rowCount && exists.rowCount > 0) {
+    if (exists.rows?.length > 0) {
       await sql`
         UPDATE settings 
         SET value = ${logoBase64}, updated_at = NOW() 
