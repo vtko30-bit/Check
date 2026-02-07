@@ -34,7 +34,14 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           const passwordsMatch = await bcrypt.compare(password, user.password);
           
           if (passwordsMatch) {
-            return { ...user, can_view_all_tasks: user.can_view_all_tasks === true } as User;
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              image: user.avatar_url ?? null,
+              can_view_all_tasks: user.can_view_all_tasks === true,
+            } as User;
           }
         }
         
