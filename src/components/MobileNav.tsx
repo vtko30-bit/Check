@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
+import { ShareButton } from './ShareButton';
 
 export function MobileNav({ user, companyLogo }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
@@ -36,6 +37,7 @@ export function MobileNav({ user, companyLogo }: {
       
       <div className="flex items-center gap-1">
         <NotificationCenter userId={user.id} />
+        <ShareButton compact />
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
           <Menu className="w-5 h-5" />
         </Button>
@@ -103,7 +105,10 @@ export function MobileNav({ user, companyLogo }: {
               })}
             </nav>
 
-            <div className="mt-auto pt-6 border-t border-slate-100">
+            <div className="mt-auto pt-6 border-t border-slate-100 space-y-2">
+                <div className="w-full">
+                  <ShareButton />
+                </div>
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-sm font-bold text-red-600 hover:bg-red-50 w-full"

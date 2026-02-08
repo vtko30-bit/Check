@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
+import { ShareButton } from './ShareButton';
 export function Sidebar({ user, companyLogo }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
   companyLogo?: string | null
@@ -71,7 +72,10 @@ export function Sidebar({ user, companyLogo }: {
         </nav>
       </div>
 
-      <div className="p-4 border-t border-slate-200 bg-slate-50">
+      <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-1">
+        <div className="w-full">
+          <ShareButton />
+        </div>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-red-600 hover:bg-red-50 w-full"
