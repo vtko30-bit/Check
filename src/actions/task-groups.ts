@@ -32,6 +32,22 @@ export async function getTaskGroups(): Promise<TaskGroup[]> {
   }
 }
 
+/** Cantidad de grupos de tareas (para mostrar en el menú lateral). */
+export async function getGroupedTasksCount(): Promise<number> {
+  try {
+    const session = await auth();
+    if (!session?.user) return 0;
+
+    const { rows } = await sql`
+      SELECT COUNT(*)::int AS count FROM task_groups
+    `;
+    return (rows[0]?.count ?? 0) as number;
+  } catch (error) {
+    console.error('Error fetching task groups count:', error);
+    return 0;
+  }
+}
+
 export async function getTaskGroupById(id: string): Promise<TaskGroup | null> {
   try {
     const session = await auth();

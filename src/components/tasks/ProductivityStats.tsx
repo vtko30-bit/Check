@@ -43,45 +43,19 @@ export function ProductivityStats({ tasks }: ProductivityStatsProps) {
   if (total === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-      
-      {/* TARJETA 1: Gráfico y Resumen (Compacto) */}
-      <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 flex items-center justify-between shadow-sm relative overflow-hidden h-28 md:h-auto">
-        <div className="flex flex-col justify-center gap-1 z-10 max-w-[65%]">
-          <div className="flex items-center gap-1.5 text-primary font-bold uppercase tracking-wider text-[10px]">
-            <Icon className="w-3.5 h-3.5" />
-            <span>Resumen</span>
-          </div>
-          <h2 className="text-lg md:text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">
-            {message}
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate hidden md:block">
-            {subMessage}
-          </p>
-          
-          <div className="mt-1 md:mt-3 flex items-center gap-3">
-             <div className="flex flex-col leading-none">
-                <span className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-200">{completed}</span>
-                <span className="text-[8px] md:text-[10px] text-slate-400 uppercase font-bold">Hechas</span>
-             </div>
-             <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
-             <div className="flex flex-col leading-none">
-                <span className="text-xl md:text-2xl font-bold text-slate-400">{pending}</span>
-                <span className="text-[8px] md:text-[10px] text-slate-400 uppercase font-bold">Faltan</span>
-             </div>
-          </div>
-        </div>
-
-        {/* Gráfico Circular (Tamaño dinámico: 80px en móvil, 120px en desktop) */}
-        <div className="h-[80px] w-[80px] md:h-[120px] md:w-[120px] relative flex-shrink-0 min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={80} minHeight={80}>
+    <div>
+      {/* Tarjeta Resumen: círculo a la izquierda, ancho reducido */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-3 flex items-center gap-3 shadow-sm relative overflow-hidden h-20 md:h-24">
+        {/* Gráfico Circular a la izquierda (más grande) */}
+        <div className="h-16 w-16 md:h-20 md:w-20 relative flex-shrink-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={64} minHeight={64}>
             <PieChart>
                 <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={percentage === 100 ? 0 : 25} // Efecto lleno al 100%
-                outerRadius={percentage === 100 ? 35 : 35}
+                innerRadius={percentage === 100 ? 0 : 18}
+                outerRadius={percentage === 100 ? 28 : 28}
                 paddingAngle={5}
                 dataKey="value"
                 stroke="none"
@@ -96,52 +70,37 @@ export function ProductivityStats({ tasks }: ProductivityStatsProps) {
                 />
             </PieChart>
             </ResponsiveContainer>
-            {/* Texto % en el centro (Oculto si está al 100% para mostrar el círculo lleno) */}
             {percentage < 100 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                         {percentage}%
                     </span>
                 </div>
             )}
         </div>
+
+        <div className="flex flex-col justify-center gap-0.5 z-10 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-primary font-bold uppercase tracking-wider text-[10px]">
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            <span>Resumen</span>
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0">
+            <h2 className="text-base md:text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">
+              {message}
+            </h2>
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+              <span className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">{completed} <span className="text-[10px] font-normal uppercase text-slate-400">Hechas</span></span>
+              <span className="w-px h-4 bg-slate-200 dark:bg-slate-600" />
+              <span className="text-sm md:text-base font-bold text-slate-500">{pending} <span className="text-[10px] font-normal uppercase text-slate-400">Faltan</span></span>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate hidden md:block">
+            {subMessage}
+          </p>
+        </div>
         
         {/* Decoración sutil */}
         <div className="absolute right-0 top-0 w-24 h-24 bg-primary/5 rounded-bl-full -z-0 pointer-events-none" />
-      </div>
-
-      {/* TARJETA 2: Nivel (Modo Barra Horizontal en Móvil) */}
-      <div className="bg-gradient-to-r md:bg-gradient-to-br from-primary to-teal-600 rounded-xl p-4 text-white shadow-md flex flex-row md:flex-col items-center md:items-start justify-between md:justify-center relative overflow-hidden h-16 md:h-auto">
-         <div className="relative z-10 flex items-center md:items-start gap-3 md:gap-0">
-            {/* Icono y Título */}
-            <div className="flex flex-col md:mb-2">
-                <div className="flex items-center gap-1.5 opacity-90">
-                    <Trophy className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Nivel</span>
-                </div>
-                <div className="text-xl md:text-3xl font-bold leading-none md:mt-1">
-                    {Math.floor(completed / 5) + 1}
-                </div>
-            </div>
-         </div>
-
-         {/* Barra de Progreso y Texto (Derecha en móvil, Abajo en desktop) */}
-         <div className="flex flex-col items-end md:items-start w-[60%] md:w-full gap-1 z-10">
-            <p className="text-[9px] text-white/90 text-right md:text-left truncate w-full">
-               {pending > 0 
-                 ? `${Math.min(3, pending)} más para subir` 
-                 : "¡Nivel máx!"}
-            </p>
-            <div className="w-full h-1.5 bg-black/20 rounded-full overflow-hidden">
-                <div 
-                    className="h-full bg-white/90 rounded-full transition-all duration-1000"
-                    style={{ width: `${(completed % 5) * 20}%` }}
-                />
-            </div>
-         </div>
-
-         {/* Decoración */}
-         <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
       </div>
     </div>
   );

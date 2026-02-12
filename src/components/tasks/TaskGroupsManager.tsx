@@ -93,7 +93,7 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
           <FolderKanban className="w-4 h-4 text-primary" />
-          Agrupar tareas
+          Tareas Agrupadas
         </h2>
         {groups.length === 0 ? (
           <p className="text-xs text-slate-500">

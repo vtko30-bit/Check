@@ -7,14 +7,16 @@ import { cn } from '@/lib/utils';
 import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare, FolderKanban } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { ShareButton } from './ShareButton';
-export function Sidebar({ user, companyLogo }: { 
+export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
-  companyLogo?: string | null
+  companyLogo?: string | null,
+  groupedTasksCount?: number
 }) {
   const pathname = usePathname();
+  const groupsLabel = groupedTasksCount > 0 ? `Tareas Agrupadas (${groupedTasksCount})` : 'Tareas Agrupadas';
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
-    { href: '/groups', label: 'Agrupar tareas', icon: FolderKanban },
+    { href: '/groups', label: groupsLabel, icon: FolderKanban },
     { href: '/calendar', label: 'Calendario', icon: Calendar },
     ...((user.role === 'admin' || user.role === 'editor') ? [{ href: '/users', label: 'Usuarios', icon: Users }] : []),
     ...(user.role === 'admin' ? [{ href: '/settings', label: 'Configuración', icon: Settings }] : []),

@@ -24,21 +24,25 @@ export default async function Dashboard({
   const groups = await getTaskGroups();
 
   return (
-    <div className="max-w-6xl mx-auto pb-24 px-4 md:px-0 relative min-h-screen">
+    <div className="w-full pb-24 px-4 md:px-8 relative min-h-screen">
       
-      {/* Cabecera con toggle de vista */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
-        <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">
-          {viewMode === 'mine' ? 'Mis Tareas' : 'Todas las Tareas'}
-        </h1>
-        <TaskViewToggle 
-          currentView={viewMode} 
-          canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true} 
-        />
-      </div>
+      {/* Título */}
+      <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">
+        {viewMode === 'mine' ? 'Mis Tareas' : 'Todas las Tareas'}
+      </h1>
 
-      {/* Dashboard de Productividad */}
-      <ProductivityStats tasks={tasks} />
+      {/* Banda resumen (ancho reducido) + botones Todas / Solo mías a la derecha */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="max-w-md w-full md:max-w-sm md:w-auto">
+          <ProductivityStats tasks={tasks} />
+        </div>
+        <div className="ml-auto">
+          <TaskViewToggle 
+            currentView={viewMode} 
+            canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true} 
+          />
+        </div>
+      </div>
 
       {/* Tabla de Tareas */}
       <TaskTable tasks={tasks} users={users} currentUser={currentUser} groups={groups} />
