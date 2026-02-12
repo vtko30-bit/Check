@@ -153,17 +153,29 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
   };
 
   const handleBulkArchive = async () => {
-    if (selectedIds.size === 0) return;
-    if (confirm(`¿Estás seguro de que quieres archivar ${selectedIds.size} tareas?`)) {
-      await bulkArchiveTasks(Array.from(selectedIds));
+    const ids =
+      selectedIds.size > 0
+        ? Array.from(selectedIds)
+        : sortedTasks.map((t) => t.id);
+    if (ids.length === 0) return;
+    if (confirm(`¿Estás seguro de que quieres archivar ${ids.length} tareas?`)) {
+      await bulkArchiveTasks(ids);
       setSelectedIds(new Set());
     }
   };
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (confirm(`¿Estás seguro de que quieres ELIMINAR definitivamente ${selectedIds.size} tareas? Esta acción no se puede deshacer.`)) {
-      await bulkDeleteTasks(Array.from(selectedIds));
+    const ids =
+      selectedIds.size > 0
+        ? Array.from(selectedIds)
+        : sortedTasks.map((t) => t.id);
+    if (ids.length === 0) return;
+    if (
+      confirm(
+        `¿Estás seguro de que quieres ELIMINAR definitivamente ${ids.length} tareas? Esta acción no se puede deshacer.`
+      )
+    ) {
+      await bulkDeleteTasks(ids);
       setSelectedIds(new Set());
     }
   };
@@ -346,16 +358,25 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
             )}
         </div>
 
-        {/* Acciones en Lote (Aparecen abajo si hay selección) */}
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200 overflow-x-auto max-w-full pb-1">
-            {viewMode === "active" && (
-                <button onClick={handleBulkArchive} className="flex items-center gap-2 bg-slate-900 dark:bg-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 whitespace-nowrap"><Archive className="w-3.5 h-3.5" /> Archivar ({selectedIds.size})</button>
-            )}
-            <button onClick={handleBulkDelete} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200 whitespace-nowrap"><Trash2 className="w-3.5 h-3.5" /> Eliminar ({selectedIds.size})</button>
-            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 whitespace-nowrap">Cancelar</button>
-          </div>
-        )}
+        {/* Barra fija bajo los filtros: Archivar (negro) y Eliminar (rojo), siempre activos.
+            - Si hay selección: actúan sobre las tareas seleccionadas.
+            - Si no hay selección: actúan sobre todas las tareas visibles del filtro actual. */}
+        <div className="flex items-center gap-2 py-2">
+          {viewMode === "active" && (
+            <button
+              onClick={handleBulkArchive}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all shadow-sm whitespace-nowrap bg-black dark:bg-slate-900 hover:bg-slate-800"
+            >
+              <Archive className="w-4 h-4" /> Archivar
+            </button>
+          )}
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all shadow-sm whitespace-nowrap bg-red-600 hover:bg-red-700"
+          >
+            <Trash2 className="w-4 h-4" /> Eliminar
+          </button>
+        </div>
       </div>
 
       {/* --- RENDERIZADO CONDICIONAL --- */}
@@ -471,7 +492,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                             {!task.isArchived && (
                                 <button
                                   onClick={() => bulkArchiveTasks([task.id])}
-                                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                 >
                                   <Archive className="w-3.5 h-3.5" />
                                   <span>Archivar</span>
@@ -517,7 +538,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                     <SortableHeader label="Vencimiento" sortKey="deadline" />
                     <SortableHeader label="Estado" sortKey="status" />
                     <th className="px-4 md:px-6 py-3.5 font-bold text-slate-700 dark:text-slate-200 min-w-[200px] bg-slate-100/80 border-b-2 border-slate-200">
-                        <span className="uppercase text-xs tracking-wider">Notas</span>
+                        <span className="uppercase text-xs tracking-wider">NOTAS</span>
                     </th>
                     <th className="px-4 md:px-6 py-3.5 font-medium w-32 bg-slate-100/80 border-b-2 border-slate-200 text-xs text-slate-600">
                       Grupo
@@ -672,7 +693,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                           await bulkArchiveTasks([task.id]);
                                         }
                                       }}
-                                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-all"
+                                      className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-slate-800 rounded-md transition-all"
                                       title="Archivar"
                                     >
                                       <Archive className="w-3.5 h-3.5" />
@@ -699,7 +720,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                               {groups.length > 0 ? (
                                 <select
                                   className="text-[11px] border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-600 max-w-[150px]"
-                                  defaultValue=""
+                                  defaultValue={task.groupId ?? ""}
                                   disabled={changingGroupFor === task.id}
                                   onChange={(e) => handleChangeGroup(task.id, e.target.value)}
                                 >
