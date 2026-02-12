@@ -1,6 +1,7 @@
 import { ProductivityStats } from '@/components/tasks/ProductivityStats';
 import { getTasks } from '@/actions/tasks';
 import { getUsers } from '@/actions/users';
+import { getTaskGroups } from '@/actions/task-groups';
 import { TaskTable } from '@/components/tasks/TaskTable';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { TaskViewToggle } from '@/components/tasks/TaskViewToggle';
@@ -20,6 +21,7 @@ export default async function Dashboard({
   const viewMode = params?.view === 'mine' ? 'mine' : 'all';
   const tasks = await getTasks(true, viewMode);
   const users = await getUsers();
+  const groups = await getTaskGroups();
 
   return (
     <div className="max-w-6xl mx-auto pb-24 px-4 md:px-0 relative min-h-screen">
@@ -39,7 +41,7 @@ export default async function Dashboard({
       <ProductivityStats tasks={tasks} />
 
       {/* Tabla de Tareas */}
-      <TaskTable tasks={tasks} users={users} currentUser={currentUser} />
+      <TaskTable tasks={tasks} users={users} currentUser={currentUser} groups={groups} />
 
       {/* --- BOTÓN FLOTANTE (NUEVA TAREA CON TEXTO) --- */}
       <div className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-50">

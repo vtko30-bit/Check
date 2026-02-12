@@ -57,18 +57,14 @@ export async function GET(request: Request) {
   } catch (err) {
     const e = err as Error;
     const msg = e.message.toLowerCase();
-    if (msg.includes('start_date')) {
-      try {
-        await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE`;
-        await sql`
-          INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
-          VALUES ('Test debug', '', ${userId}, NULL, NULL, 'pending', '', NOW(), '[]', 'one_time', 'normal')
-        `;
-        result.insert = { ok: true, mensaje: 'Migración aplicada: columna start_date añadida e INSERT exitoso' };
-      } catch (retryErr) {
-        const re = retryErr as Error;
-        result.insert = { ok: false, error: re.message, migracion_intentada: true };
-      }
+
+    // Ya no aplicamos migraciones desde este endpoint; solo informamos claramente.
+    if (msg.includes('start_date') && msg.includes('column')) {
+      result.insert = {
+        ok: false,
+        error: e.message,
+        motivo: 'Falta la columna start_date en tasks. Ejecuta /api/seed (en desarrollo) o aplica las migraciones correspondientes.',
+      };
     } else {
       result.insert = {
         ok: false,

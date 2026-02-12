@@ -79,24 +79,11 @@ export async function createUser(formData: FormData) {
         error: 'Ya existe un usuario registrado con ese correo.',
       };
     }
-
-    try {
-      await sql`
-        INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
-        VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
-      `;
-    } catch (insertError: any) {
-      const insertMsg = typeof insertError?.message === 'string' ? insertError.message : '';
-      if (insertMsg.includes('can_view_all_tasks') && insertMsg.includes('does not exist')) {
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_all_tasks BOOLEAN DEFAULT FALSE`;
-        await sql`
-          INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
-          VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
-        `;
-      } else {
-        throw insertError;
-      }
-    }
+    
+    await sql`
+      INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
+      VALUES (${name}, ${email}, ${role}, ${avatarUrl}, ${hashedPassword}, ${canViewAll})
+    `;
 
     revalidatePath('/users');
     revalidatePath('/'); // For assignments dropdown
@@ -128,13 +115,34 @@ export async function createUser(formData: FormData) {
 
 export async function updateUserRole(userId: string, newRole: 'admin' | 'editor' | 'viewer') {
   const session = await auth();
-  const user = session?.user as { role?: string } | undefined;
+  const user = session?.user as { role?: string; id?: string } | undefined;
+
   if (user?.role !== 'admin' && user?.role !== 'editor') {
-    return { success: false };
+    return { success: false, error: 'No autorizado.' };
   }
-  await sql`UPDATE users SET role = ${newRole} WHERE id = ${userId}`;
-  revalidatePath('/users');
-  return { success: true };
+
+  // Solo un admin puede otorgar rol de admin
+  if (user?.role !== 'admin' && newRole === 'admin') {
+    return { success: false, error: 'Solo un administrador puede asignar el rol de administrador.' };
+  }
+
+  try {
+    // Evitar dejar el sistema sin administradores
+    if (newRole !== 'admin') {
+      const { rows } = await sql`SELECT id FROM users WHERE role = 'admin'`;
+      const isLastAdmin = rows.length === 1 && rows[0].id === userId;
+      if (isLastAdmin) {
+        return { success: false, error: 'No puedes quitar el rol al último administrador del sistema.' };
+      }
+    }
+
+    await sql`UPDATE users SET role = ${newRole} WHERE id = ${userId}`;
+    revalidatePath('/users');
+    return { success: true };
+  } catch (error) {
+    console.error('Error al actualizar rol de usuario:', error);
+    return { success: false, error: 'No se pudo actualizar el rol. Intenta de nuevo.' };
+  }
 }
 
 const updateUserSchema = z.object({

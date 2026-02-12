@@ -12,9 +12,26 @@ const taskFormSchema = z.object({
   assignedUserId: z.string().optional().nullable(),
   deadline: z.string().optional(),
   notes: z.string().optional().default(''),
-  frequency: z.enum(['one_time', 'daily', 'weekly', 'weekly_0', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_6', 'monday', 'monthly', 'date_range']).default('one_time'),
+  frequency: z
+    .enum([
+      'one_time',
+      'daily',
+      'weekly',
+      'weekly_0',
+      'weekly_1',
+      'weekly_2',
+      'weekly_3',
+      'weekly_4',
+      'weekly_5',
+      'weekly_6',
+      'monday',
+      'monthly',
+      'date_range',
+    ])
+    .default('one_time'),
   startDate: z.string().optional(),
   priority: z.enum(['normal', 'urgent']).default('normal'),
+  groupId: z.string().uuid().optional().nullable(),
 });
 
 // --- OWNERSHIP HELPER ---
@@ -47,7 +64,8 @@ function mapTask(row: QueryResultRow): Task {
     startDate: row.start_date ? new Date(row.start_date).toISOString().split('T')[0] : undefined,
     priority: row.priority || 'normal',
     isArchived: !!row.is_archived,
-    isPinned: !!row.is_pinned
+    isPinned: !!row.is_pinned,
+    groupId: (row as any).group_id ?? null,
   };
 }
 
@@ -162,18 +180,50 @@ export async function getTasks(
     let query;
     if (showOnlyMine) {
       query = showArchived
-        ? sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} ORDER BY deadline ASC`
-        : sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} AND is_archived IS NOT TRUE ORDER BY deadline ASC`;
+        ? sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} AND (group_id IS NULL) ORDER BY deadline ASC`
+        : sql`SELECT * FROM tasks WHERE assigned_user_id = ${userId} AND is_archived IS NOT TRUE AND (group_id IS NULL) ORDER BY deadline ASC`;
     } else {
       query = showArchived
-        ? sql`SELECT * FROM tasks ORDER BY deadline ASC`
-        : sql`SELECT * FROM tasks WHERE is_archived IS NOT TRUE ORDER BY deadline ASC`;
+        ? sql`SELECT * FROM tasks WHERE group_id IS NULL ORDER BY deadline ASC`
+        : sql`SELECT * FROM tasks WHERE is_archived IS NOT TRUE AND group_id IS NULL ORDER BY deadline ASC`;
     }
 
     const { rows } = await withTimeout(query, 15000, { rows: [], rowCount: 0 });
     return rows.map(mapTask);
   } catch (error) {
     console.error("Error in getTasks:", error);
+    return [];
+  }
+}
+
+// Obtiene tareas pertenecientes a un grupo concreto (carpeta/proyecto)
+export async function getTasksByGroup(
+  groupId: string,
+  showArchived: boolean = false
+): Promise<Task[]> {
+  try {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    const user = session.user as { role: string; id: string; canViewAllTasks?: boolean };
+    const canSeeAll = user.canViewAllTasks === true || user.role === 'admin';
+    const userId = user.id;
+
+    let query;
+    if (canSeeAll) {
+      query = showArchived
+        ? sql`SELECT * FROM tasks WHERE group_id = ${groupId} ORDER BY deadline ASC`
+        : sql`SELECT * FROM tasks WHERE group_id = ${groupId} AND is_archived IS NOT TRUE ORDER BY deadline ASC`;
+    } else {
+      query = showArchived
+        ? sql`SELECT * FROM tasks WHERE group_id = ${groupId} AND assigned_user_id = ${userId} ORDER BY deadline ASC`
+        : sql`SELECT * FROM tasks WHERE group_id = ${groupId} AND assigned_user_id = ${userId} AND is_archived IS NOT TRUE ORDER BY deadline ASC`;
+    }
+
+    const { rows } = await withTimeout(query, 15000, { rows: [], rowCount: 0 });
+    return rows.map(mapTask);
+  } catch (error) {
+    console.error("Error in getTasksByGroup:", error);
     return [];
   }
 }
@@ -275,12 +325,13 @@ export async function updateTask(taskId: string, formData: FormData) {
       frequency: formData.get('frequency') || 'one_time',
       startDate: formData.get('startDate') || undefined,
       priority: formData.get('priority') || 'normal',
+      groupId: formData.get('groupId') || null,
     });
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
-    const { title, description, assignedUserId, deadline, notes, frequency, startDate, priority } = parsed.data;
+    const { title, description, assignedUserId, deadline, notes, frequency, startDate, priority, groupId } = parsed.data;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
 
@@ -295,7 +346,8 @@ export async function updateTask(taskId: string, formData: FormData) {
           notes = ${notes}, 
           subtasks = ${JSON.stringify(subtasks)}, 
           frequency = ${frequency}, 
-          priority = ${priority}
+          priority = ${priority},
+          group_id = ${groupId || null}
       WHERE id = ${taskId}
     `;
 
@@ -322,41 +374,22 @@ export async function createTask(formData: FormData) {
       frequency: formData.get('frequency') || 'one_time',
       startDate: formData.get('startDate') || undefined,
       priority: formData.get('priority') || 'normal',
+      groupId: formData.get('groupId') || null,
     });
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
-    let { assignedUserId, title, description, deadline, notes, frequency, startDate, priority } = parsed.data;
+    let { assignedUserId, title, description, deadline, notes, frequency, startDate, priority, groupId } = parsed.data;
     if (user.role !== 'admin') assignedUserId = user.id;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
-    try {
-      await sql`
-        INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
-        VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
-      `;
-    } catch (insertErr: unknown) {
-      const msg = String(insertErr instanceof Error ? insertErr.message : '').toLowerCase();
-      if (msg.includes('start_date')) {
-        try {
-          await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE`;
-          await sql`
-            INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority)
-            VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
-          `;
-        } catch (retryErr) {
-          await sql`
-            INSERT INTO tasks (title, description, assigned_user_id, deadline, status, notes, created_at, subtasks, frequency, priority)
-            VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority})
-          `;
-        }
-      } else {
-        throw insertErr;
-      }
-    }
+    await sql`
+      INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority, group_id)
+      VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority}, ${groupId || null})
+    `;
 
     revalidatePath('/');
     revalidatePath('/calendar');
@@ -364,6 +397,14 @@ export async function createTask(formData: FormData) {
   } catch (error) {
     console.error("Error creating task:", error);
     const msg = error instanceof Error ? error.message : '';
+
+    if (msg.toLowerCase().includes('start_date') && msg.toLowerCase().includes('column')) {
+      return {
+        success: false,
+        error: 'La base de datos necesita actualizarse (columna start_date). Ejecuta el seed en desarrollo o contacta al administrador.',
+      };
+    }
+
     return { success: false, error: process.env.NODE_ENV === 'development' ? msg : "Failed to create task" };
   }
 }
@@ -430,6 +471,27 @@ export async function updateTaskNotes(taskId: string, notes: string) {
   } catch (error) {
     console.error("Error updating task notes:", error);
     return { success: false, error: "Failed to update notes" };
+  }
+}
+
+export async function setTaskGroup(taskId: string, groupId: string | null) {
+  try {
+    const perm = await canModifyTask(taskId);
+    if (!perm.ok) return { success: false, error: perm.error };
+
+    await sql`UPDATE tasks SET group_id = ${groupId} WHERE id = ${taskId}`;
+
+    revalidatePath('/');
+    revalidatePath('/calendar');
+    revalidatePath('/groups');
+    if (groupId) {
+      revalidatePath(`/groups/${groupId}`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task group:', error);
+    return { success: false, error: 'No se pudo mover la tarea de grupo.' };
   }
 }
 

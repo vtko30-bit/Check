@@ -65,7 +65,19 @@ export async function GET(request: Request) {
       );
     `;
 
-    // 2. Create Tasks Table
+    // 2. Create Task Groups Table (para agrupar tareas en "carpetas" o proyectos)
+    await sql`
+      CREATE TABLE IF NOT EXISTS task_groups (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        color VARCHAR(20),
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+
+    // 3. Create Tasks Table
     await sql`
       CREATE TABLE IF NOT EXISTS tasks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,11 +92,12 @@ export async function GET(request: Request) {
         frequency VARCHAR(50) DEFAULT 'one_time',
         priority VARCHAR(20) DEFAULT 'normal',
         is_archived BOOLEAN DEFAULT FALSE,
-        is_pinned BOOLEAN DEFAULT FALSE
+        is_pinned BOOLEAN DEFAULT FALSE,
+        group_id UUID REFERENCES task_groups(id)
       );
     `;
 
-    // 3. Create Notifications Table
+    // 4. Create Notifications Table
     await sql`
       CREATE TABLE IF NOT EXISTS notifications (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -95,7 +108,7 @@ export async function GET(request: Request) {
       );
     `;
 
-    // 4. Create Settings Table
+    // 5. Create Settings Table
     await sql`
       CREATE TABLE IF NOT EXISTS settings (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,6 +127,7 @@ export async function GET(request: Request) {
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE`;
+        await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES task_groups(id)`;
     } catch (e) {
         console.log("Error adding columns to tasks:", e);
     }

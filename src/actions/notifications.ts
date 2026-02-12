@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { Notification } from '@/types';
+import { auth } from '@/auth';
 
 function mapNotification(row: QueryResultRow): Notification {
   return {
@@ -16,41 +17,83 @@ function mapNotification(row: QueryResultRow): Notification {
 
 export async function getNotifications(userId: string): Promise<Notification[]> {
   try {
+    const session = await auth();
+    const currentUser = session?.user as { id?: string } | undefined;
+
+    if (!currentUser?.id) {
+      console.warn('[Notifications] getNotifications sin usuario autenticado');
+      return [];
+    }
+
+    if (currentUser.id !== userId) {
+      console.warn('[Notifications] Intento de leer notificaciones de otro usuario');
+      return [];
+    }
+
     const { rows } = await sql`
       SELECT * FROM notifications 
-      WHERE user_id = ${userId} 
+      WHERE user_id = ${currentUser.id} 
       ORDER BY created_at DESC 
       LIMIT 20
     `;
     return rows.map(mapNotification);
   } catch (error) {
-    console.error("Error fetching notifications:", error);
+    console.error('Error fetching notifications:', error);
     return [];
   }
 }
 
 export async function markAsRead(notificationId: string, userId: string) {
   try {
+    const session = await auth();
+    const currentUser = session?.user as { id?: string } | undefined;
+
+    if (!currentUser?.id) {
+      return { success: false, error: 'No autenticado' };
+    }
+
+    if (currentUser.id !== userId) {
+      console.warn('[Notifications] Intento de marcar notificación de otro usuario');
+      return { success: false, error: 'No autorizado' };
+    }
+
     const { rowCount } = await sql`
       UPDATE notifications SET is_read = TRUE 
-      WHERE id = ${notificationId} AND user_id = ${userId}
+      WHERE id = ${notificationId} AND user_id = ${currentUser.id}
     `;
     revalidatePath('/');
-    return { success: (rowCount ?? 0) > 0 };
+
+    if (!rowCount) {
+      return { success: false, error: 'Notificación no encontrada' };
+    }
+
+    return { success: true };
   } catch (error) {
-    console.error("Error marking notification as read:", error);
-    return { success: false };
+    console.error('Error marking notification as read:', error);
+    return { success: false, error: 'No se pudo marcar la notificación como leída.' };
   }
 }
 
 export async function markAllAsRead(userId: string) {
   try {
-    await sql`UPDATE notifications SET is_read = TRUE WHERE user_id = ${userId}`;
+    const session = await auth();
+    const currentUser = session?.user as { id?: string } | undefined;
+
+    if (!currentUser?.id) {
+      return { success: false, error: 'No autenticado' };
+    }
+
+    if (currentUser.id !== userId) {
+      console.warn('[Notifications] Intento de marcar todas como leídas para otro usuario');
+      return { success: false, error: 'No autorizado' };
+    }
+
+    await sql`UPDATE notifications SET is_read = TRUE WHERE user_id = ${currentUser.id}`;
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    console.error("Error marking all notifications as read:", error);
-    return { success: false };
+    console.error('Error marking all notifications as read:', error);
+    return { success: false, error: 'No se pudieron marcar las notificaciones como leídas.' };
   }
 }
 
@@ -63,19 +106,27 @@ export async function createNotification(userId: string, message: string) {
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    console.error("Error creating notification:", error);
-    return { success: false };
+    console.error('Error creating notification:', error);
+    return { success: false, error: 'No se pudo crear la notificación.' };
   }
 }
 
 export async function sendTestNotification() {
   try {
+    const session = await auth();
+    const currentUser = session?.user as { role?: string } | undefined;
+
+    if (currentUser?.role !== 'admin') {
+      return { success: false, error: 'No autorizado. Solo administradores pueden enviar notificaciones de prueba.' };
+    }
+
     const { rows } = await sql`SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1`;
     if (rows.length > 0) {
-      return await createNotification(rows[0].id, "🔔 ¡Prueba de sonido de notificación exitosa!");
+      return await createNotification(rows[0].id, '🔔 ¡Prueba de sonido de notificación exitosa!');
     }
-    return { success: false, error: "Admin not found" };
+    return { success: false, error: 'No se encontró un usuario administrador.' };
   } catch (error) {
-     return { success: false, error: (error as Error).message };
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+     return { success: false, error: message };
   }
 }

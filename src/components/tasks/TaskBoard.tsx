@@ -29,7 +29,7 @@ import { Calendar as CalendarIcon, ListChecks, MoreVertical } from "lucide-react
 import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { updateTaskStatus } from "@/actions/tasks";
+import { updateTaskStatus, setTaskGroup } from "@/actions/tasks";
 import { TaskFormDialog } from "./TaskFormDialog";
 import { createPortal } from "react-dom";
 
@@ -74,14 +74,32 @@ function TaskCard({ task, users, currentUser, isOverlay }: { task: Task, users: 
         </div>
         
         <div className="flex items-center justify-between text-xs text-slate-500 mt-3">
-             <div className="flex items-center gap-1">
-                <CalendarIcon className="w-3 h-3" />
-                {formatDate(task.deadline)}
-             </div>
-             {assignee && (
-                <span className="truncate max-w-[80px]">{assignee.name}</span>
-             )}
+          <div className="flex items-center gap-1">
+            <CalendarIcon className="w-3 h-3" />
+            {formatDate(task.deadline)}
+          </div>
+          {assignee && (
+            <span className="truncate max-w-[80px]">{assignee.name}</span>
+          )}
         </div>
+
+        {task.groupId && (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const result = await setTaskGroup(task.id, null);
+                if (!result?.success && result?.error) {
+                  toast.error(result.error);
+                }
+              }}
+              className="text-[10px] text-slate-400 hover:text-primary underline"
+            >
+              Quitar del grupo
+            </button>
+          </div>
+        )}
     </div>
   );
 }
@@ -180,6 +198,11 @@ interface TaskBoardProps {
 
 export function TaskBoard({ tasks, users, currentUser }: TaskBoardProps) {
   const [activeTask, setActiveTask] = React.useState<Task | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -270,19 +293,21 @@ export function TaskBoard({ tasks, users, currentUser }: TaskBoardProps) {
       </div>
 
       {/* Overlay que sigue al mouse al arrastrar */}
-      {createPortal(
-        <DragOverlay dropAnimation={dropAnimation}>
+      {mounted &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <DragOverlay dropAnimation={dropAnimation}>
             {activeTask ? (
-                <TaskCard 
-                    task={activeTask} 
-                    users={users} 
-                    currentUser={currentUser} 
-                    isOverlay 
-                />
+              <TaskCard
+                task={activeTask}
+                users={users}
+                currentUser={currentUser}
+                isOverlay
+              />
             ) : null}
-        </DragOverlay>,
-        document.body
-      )}
+          </DragOverlay>,
+          document.body
+        )}
     </DndContext>
   );
 }

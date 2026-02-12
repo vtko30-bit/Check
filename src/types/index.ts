@@ -33,6 +33,15 @@ export interface Task {
   priority: 'normal' | 'urgent';
   isArchived: boolean;
   isPinned: boolean;
+  groupId?: string | null;
+}
+
+export interface TaskGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  createdAt: string;
 }
 
 export interface Notification {

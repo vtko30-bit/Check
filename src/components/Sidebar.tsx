@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare, FolderKanban } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { ShareButton } from './ShareButton';
 export function Sidebar({ user, companyLogo }: { 
@@ -14,6 +14,7 @@ export function Sidebar({ user, companyLogo }: {
   const pathname = usePathname();
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
+    { href: '/groups', label: 'Agrupar tareas', icon: FolderKanban },
     { href: '/calendar', label: 'Calendario', icon: Calendar },
     ...((user.role === 'admin' || user.role === 'editor') ? [{ href: '/users', label: 'Usuarios', icon: Users }] : []),
     ...(user.role === 'admin' ? [{ href: '/settings', label: 'Configuración', icon: Settings }] : []),

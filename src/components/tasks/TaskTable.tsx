@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { Task, User } from "@/types";
+import { Task, User, TaskGroup } from "@/types";
 import { formatDate } from "@/lib/date";
 import {
   updateTaskStatus,
@@ -54,6 +54,7 @@ interface TaskTableProps {
   tasks: Task[];
   users: User[];
   currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
+  groups?: TaskGroup[];
 }
 
 const statusLabels: Record<string, string> = {
@@ -71,7 +72,7 @@ function validDate(str: string) {
   return !Number.isNaN(new Date(str).getTime());
 }
 
-export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
+export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("active");
   const [layout, setLayout] = useState<"list" | "board">("list");
   const [filter, setFilter] = useState<FilterType>("all");
@@ -79,6 +80,7 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
+  const [changingGroupFor, setChangingGroupFor] = useState<string | null>(null);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = "asc";
@@ -182,6 +184,17 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 2 && diffDays >= 0;
   };
+
+  async function handleChangeGroup(taskId: string, groupId: string) {
+    setChangingGroupFor(taskId);
+    const target = groupId || null;
+    const { setTaskGroup } = await import('@/actions/tasks');
+    const result = await setTaskGroup(taskId, target);
+    if (!result?.success && result?.error) {
+      alert(result.error);
+    }
+    setChangingGroupFor(null);
+  }
 
   const SortableHeader = ({ label, sortKey, className }: { label: string, sortKey?: SortKey, className?: string }) => {
     const isActive = sortConfig?.key === sortKey;
@@ -380,20 +393,12 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                     task.status !== 'completed';
                     const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
                     const isPriority = task.priority === 'urgent';
-                    
-                    const borderClass = task.status === 'completed'
-                        ? "border-l-emerald-500" 
-                        : isOverdue 
-                            ? "border-l-rose-500" 
-                            : isPriority
-                                ? "border-l-amber-500" 
-                                : "border-l-slate-300"; 
 
                     return (
-                    <div key={task.id} className={cn(
-                        "p-4 flex flex-col gap-3 transition-colors border-l-[5px] border-b bg-white dark:bg-slate-900",
-                        borderClass
-                    )}>
+                    <div
+                      key={task.id}
+                      className="p-4 flex flex-col gap-3 transition-colors border-b bg-white dark:bg-slate-900"
+                    >
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -464,9 +469,21 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 }
                             />
                             {!task.isArchived && (
-                                <button onClick={() => bulkArchiveTasks([task.id])} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-slate-600 hover:bg-slate-50 rounded-lg"><Archive className="w-3.5 h-3.5" /><span>Archivar</span></button>
+                                <button
+                                  onClick={() => bulkArchiveTasks([task.id])}
+                                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                                >
+                                  <Archive className="w-3.5 h-3.5" />
+                                  <span>Archivar</span>
+                                </button>
                             )}
-                            <button onClick={() => deleteTask(task.id)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /><span>Eliminar</span></button>
+                            <button
+                              onClick={() => deleteTask(task.id)}
+                              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Eliminar</span>
+                            </button>
                         </div>
                         </div>
                     </div>
@@ -502,6 +519,9 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                     <th className="px-4 md:px-6 py-3.5 font-bold text-slate-700 dark:text-slate-200 min-w-[200px] bg-slate-100/80 border-b-2 border-slate-200">
                         <span className="uppercase text-xs tracking-wider">Notas</span>
                     </th>
+                    <th className="px-4 md:px-6 py-3.5 font-medium w-32 bg-slate-100/80 border-b-2 border-slate-200 text-xs text-slate-600">
+                      Grupo
+                    </th>
                     <th className="px-4 md:px-6 py-3.5 font-medium w-10 bg-slate-100/80 border-b-2 border-slate-200"></th>
                 </tr>
                 </thead>
@@ -516,21 +536,10 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                         new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
                                         task.status !== 'completed';
 
-                        const rowBorderClass = task.status === 'completed'
-                             ? "border-l-emerald-500 bg-white hover:bg-slate-50"
-                             : isOverdue 
-                                ? "border-l-rose-500 bg-white hover:bg-rose-50/20" 
-                                : isPriority 
-                                    ? "border-l-amber-500 bg-white hover:bg-amber-50/20" 
-                                    : "border-l-slate-300 bg-white hover:bg-slate-50";
-
                         return (
                         <tr
-                            key={task.id}
-                            className={cn(
-                            "transition-colors group border-l-[5px]",
-                            rowBorderClass
-                            )}
+                          key={task.id}
+                          className="transition-colors group bg-white hover:bg-slate-50"
                         >
                             <td className="px-4 md:px-6 py-3 align-top">
                             <button 
@@ -658,16 +667,16 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                         }
                                     />
                                     <button
-                                        onClick={async () => {
+                                      onClick={async () => {
                                         if (confirm("¿Archivar esta tarea?")) {
-                                            await bulkArchiveTasks([task.id]);
+                                          await bulkArchiveTasks([task.id]);
                                         }
-                                        }}
-                                        className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
-                                        title="Archivar"
+                                      }}
+                                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-all"
+                                      title="Archivar"
                                     >
-                                        <Archive className="w-3.5 h-3.5" />
-                                        <span>Archivar</span>
+                                      <Archive className="w-3.5 h-3.5" />
+                                      <span>Archivar</span>
                                     </button>
                                     </>
                                 )}
@@ -685,6 +694,25 @@ export function TaskTable({ tasks, users, currentUser }: TaskTableProps) {
                                 </button>
                                 </div>
                             </div>
+                            </td>
+                            <td className="px-4 md:px-6 py-4 align-top">
+                              {groups.length > 0 ? (
+                                <select
+                                  className="text-[11px] border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-600 max-w-[150px]"
+                                  defaultValue=""
+                                  disabled={changingGroupFor === task.id}
+                                  onChange={(e) => handleChangeGroup(task.id, e.target.value)}
+                                >
+                                  <option value="">Sin grupo</option>
+                                  {groups.map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-[11px] text-slate-400">Sin grupo</span>
+                              )}
                             </td>
                         </tr>
                         );

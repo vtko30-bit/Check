@@ -15,9 +15,10 @@ interface TaskFormDialogProps {
   task?: Task; // Optional task for edit mode
   trigger?: React.ReactNode; // Custom trigger
   currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
+  groupId?: string; // Opcional: asignar tarea a un grupo/carpeta
 }
 
-export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDialogProps) {
+export function TaskFormDialog({ users, task, trigger, currentUser, groupId }: TaskFormDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,14 @@ export function TaskFormDialog({ users, task, trigger, currentUser }: TaskFormDi
     // If not admin, force assignment to self
     if (!isAdmin && currentUser?.id) {
       formData.set('assignedUserId', currentUser.id);
+    }
+
+    // Si se abre desde un grupo, forzamos el groupId para que la tarea viva dentro de esa "carpeta"
+    if (groupId) {
+      formData.set('groupId', groupId);
+    } else if (task && (task as any).groupId) {
+      // Mantener el grupo actual al editar, aunque el formulario no lo exponga
+      formData.set('groupId', (task as any).groupId as string);
     }
 
     // Add subtasks to formData as JSON with IDs (deduplicar por título)
