@@ -14,7 +14,7 @@ interface TaskFormDialogProps {
   users: User[];
   task?: Task; // Optional task for edit mode
   trigger?: React.ReactNode; // Custom trigger
-  currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
+  currentUser?: { id?: string; role?: string; name?: string | null; email?: string | null; image?: string | null };
   groupId?: string; // Opcional: asignar tarea a un grupo/carpeta
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
