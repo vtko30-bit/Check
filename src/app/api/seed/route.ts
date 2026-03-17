@@ -72,7 +72,12 @@ export async function GET(request: Request) {
         name VARCHAR(255) NOT NULL,
         description TEXT,
         color VARCHAR(20),
+        supervisor_user_id UUID REFERENCES users(id),
+        list_type VARCHAR(50) DEFAULT 'one_time',
+        due_date DATE,
         created_by UUID REFERENCES users(id),
+        last_completed_at TIMESTAMP,
+        last_completed_by UUID REFERENCES users(id),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `;
@@ -120,6 +125,11 @@ export async function GET(request: Request) {
 
     // Migrations for existing tables
     try {
+        await sql`ALTER TABLE task_groups ADD COLUMN IF NOT EXISTS supervisor_user_id UUID REFERENCES users(id)`;
+        await sql`ALTER TABLE task_groups ADD COLUMN IF NOT EXISTS list_type VARCHAR(50) DEFAULT 'one_time'`;
+        await sql`ALTER TABLE task_groups ADD COLUMN IF NOT EXISTS due_date DATE`;
+        await sql`ALTER TABLE task_groups ADD COLUMN IF NOT EXISTS last_completed_at TIMESTAMP`;
+        await sql`ALTER TABLE task_groups ADD COLUMN IF NOT EXISTS last_completed_by UUID REFERENCES users(id)`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS subtasks JSONB DEFAULT '[]'`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frequency VARCHAR(50) DEFAULT 'one_time'`;
         await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS overdue_notified BOOLEAN DEFAULT FALSE`;

@@ -13,7 +13,7 @@ export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: {
   groupedTasksCount?: number
 }) {
   const pathname = usePathname();
-  const groupsLabel = groupedTasksCount > 0 ? `Tareas Agrupadas (${groupedTasksCount})` : 'Tareas Agrupadas';
+  const groupsLabel = groupedTasksCount > 0 ? `Listas de Tareas (${groupedTasksCount})` : 'Listas de Tareas';
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
     { href: '/groups', label: groupsLabel, icon: FolderKanban },
@@ -34,7 +34,11 @@ export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: {
             </div>
             <span className="font-bold text-xl tracking-tight text-slate-800">Check</span>
           </div>
-          <NotificationCenter userId={user.id} align="left" />
+          <NotificationCenter
+            userId={user.id}
+            align="left"
+            highlightApprovals={user.role === 'admin'}
+          />
         </div>
 
         {/* Logo de la Empresa */}

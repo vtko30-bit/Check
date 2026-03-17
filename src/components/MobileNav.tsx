@@ -17,7 +17,7 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const groupsLabel = groupedTasksCount > 0 ? `Tareas Agrupadas (${groupedTasksCount})` : 'Tareas Agrupadas';
+  const groupsLabel = groupedTasksCount > 0 ? `Listas de Tareas (${groupedTasksCount})` : 'Listas de Tareas';
   const links = [
     { href: '/', label: 'Tareas', icon: LayoutDashboard },
     { href: '/groups', label: groupsLabel, icon: FolderKanban },
@@ -38,7 +38,10 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
       </div>
       
       <div className="flex items-center gap-1">
-        <NotificationCenter userId={user.id} />
+        <NotificationCenter
+          userId={user.id}
+          highlightApprovals={user.role === 'admin'}
+        />
         <ShareButton compact />
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
           <Menu className="w-5 h-5" />

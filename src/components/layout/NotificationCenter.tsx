@@ -7,7 +7,15 @@ import { Notification } from '@/types';
 import { getNotifications, markAsRead, markAllAsRead } from '@/actions/notifications';
 import { cn } from '@/lib/utils';
 
-export function NotificationCenter({ userId, align = 'right' }: { userId: string, align?: 'left' | 'right' }) {
+export function NotificationCenter({
+  userId,
+  align = 'right',
+  highlightApprovals = false,
+}: {
+  userId: string;
+  align?: 'left' | 'right';
+  highlightApprovals?: boolean;
+}) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -54,6 +62,15 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
     await markAsRead(id, userId);
     fetchNotifications();
   };
+
+  const hasPendingApproval = highlightApprovals
+    ? notifications.some(
+        (n) =>
+          !n.isRead &&
+          typeof n.message === 'string' &&
+          n.message.startsWith('Nueva tarea pendiente de asignación')
+      )
+    : false;
 
   const handleMarkAllRead = async () => {
     await markAllAsRead(userId);
@@ -170,13 +187,22 @@ export function NotificationCenter({ userId, align = 'right' }: { userId: string
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Bell className={cn(
-          "w-5 h-5 transition-colors",
-          unreadCount > 0 ? "text-primary fill-primary/10" : "text-slate-400 group-hover:text-slate-600"
-        )} />
+        <Bell
+          className={cn(
+            'w-5 h-5 transition-colors',
+            unreadCount > 0 || hasPendingApproval
+              ? 'text-primary fill-primary/10'
+              : 'text-slate-400 group-hover:text-slate-600'
+          )}
+        />
         {unreadCount > 0 && (
           <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
             {unreadCount > 10 ? '9+' : unreadCount}
+          </span>
+        )}
+        {hasPendingApproval && (
+          <span className="absolute -top-1 -left-1 w-3 h-3 rounded-full bg-amber-400 text-[9px] font-black text-white flex items-center justify-center shadow ring-2 ring-white">
+            !
           </span>
         )}
       </button>

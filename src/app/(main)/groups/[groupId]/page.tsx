@@ -59,6 +59,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           users={users}
           currentUser={currentUser as any}
           groupId={group.id}
+          defaultAssignedUserId={group.supervisorUserId || undefined}
+          defaultFrequency={group.listType || 'one_time'}
+          defaultDeadline={group.dueDate || undefined}
           trigger={
             <button className="inline-flex items-center gap-2 h-10 px-4 bg-primary text-white rounded-full shadow-sm hover:bg-primary/90 text-sm font-semibold">
               <Plus className="w-4 h-4" />

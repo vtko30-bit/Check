@@ -36,12 +36,20 @@ export interface Task {
   groupId?: string | null;
 }
 
+export type TaskGroupType = 'one_time' | 'permanent';
+
 export interface TaskGroup {
   id: string;
   name: string;
   description?: string;
   color?: string;
   createdAt: string;
+  supervisorUserId?: string | null;
+  responsibleUserId?: string | null;
+  listType?: TaskGroupType;
+  dueDate?: string | null;
+  lastCompletedAt?: string | null;
+  lastCompletedBy?: string | null;
 }
 
 export interface Notification {

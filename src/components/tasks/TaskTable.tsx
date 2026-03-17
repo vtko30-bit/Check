@@ -30,6 +30,7 @@ import {
   ArrowUp,
   ArrowDown
 } from "lucide-react";
+import { toast } from "sonner";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { TaskFormDialog } from "./TaskFormDialog";
 import { TaskBoard } from "./TaskBoard";
@@ -64,29 +65,74 @@ const statusLabels: Record<string, string> = {
 };
 
 type FilterType = "all" | "pending" | "completed"; 
+type DateFilterType = "all" | "today" | "week" | "overdue";
 type ViewMode = "active" | "archived";
 type SortDirection = "asc" | "desc";
 type SortKey = "title" | "assignedUserId" | "deadline" | "status" | "priority";
 
+const SORT_STORAGE_KEY = "check-task-sort";
+
 function validDate(str: string) {
-  return !Number.isNaN(new Date(str).getTime());
+  return !!str && !Number.isNaN(new Date(str).getTime());
+}
+
+function isOverdue(deadline: string, status: Task["status"]) {
+  if (!validDate(deadline)) return false;
+  const deadlineDate = new Date(deadline);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  return deadlineDate.getTime() < todayStart.getTime() && status !== "completed";
+}
+
+function isNearDeadline(deadline: string, status: Task["status"]) {
+  if (!validDate(deadline) || status === "completed") return false;
+  const d = new Date(deadline);
+  const now = new Date();
+  const diffTime = d.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 2 && diffDays >= 0;
+}
+
+function confirmAction(message: string) {
+  if (typeof window === "undefined") return false;
+  return window.confirm(message);
+}
+
+function getStoredSort(): { key: SortKey; direction: SortDirection } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const s = localStorage.getItem(SORT_STORAGE_KEY);
+    if (!s) return null;
+    const parsed = JSON.parse(s) as { key: SortKey; direction: SortDirection };
+    if (["title", "assignedUserId", "deadline", "status", "priority"].includes(parsed?.key) && ["asc", "desc"].includes(parsed?.direction))
+      return parsed;
+  } catch (_) {}
+  return null;
 }
 
 export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("active");
   const [layout, setLayout] = useState<"list" | "board">("list");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilterType>("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
+  React.useEffect(() => {
+    setSortConfig(getStoredSort());
+  }, []);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = "asc";
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
       direction = "desc";
     }
-    setSortConfig({ key, direction });
+    const next = { key, direction };
+    setSortConfig(next);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next));
+    } catch (_) {}
   };
 
   const getAssignedUser = useCallback(
@@ -95,15 +141,36 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
   );
 
   const sortedTasks = useMemo(() => {
-    let result = viewMode === "archived" 
-      ? tasks.filter((t) => t.isArchived)
-      : tasks.filter((t) => !t.isArchived);
+    // 1) Para usuarios no administradores, ocultamos tareas sin asignar
+    const baseTasks =
+      currentUser?.role === "admin"
+        ? tasks
+        : tasks.filter((t) => !!t.assignedUserId);
+
+    // 2) Separar activas / archivadas
+    let result =
+      viewMode === "archived"
+        ? baseTasks.filter((t) => t.isArchived)
+        : baseTasks.filter((t) => !t.isArchived);
 
     if (viewMode !== "archived") {
       if (filter === "pending") {
         result = result.filter(t => t.status === "pending" || t.status === "in_progress");
       } else if (filter === "completed") {
         result = result.filter(t => t.status === "completed");
+      }
+      if (dateFilter !== "all") {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
+        const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000 - 1;
+        result = result.filter(t => {
+          const d = validDate(t.deadline) ? new Date(t.deadline).getTime() : 0;
+          if (dateFilter === "today") return d >= todayStart && d <= todayEnd;
+          if (dateFilter === "week") return d >= todayStart && d <= weekEnd;
+          if (dateFilter === "overdue") return d > 0 && d < todayStart && t.status !== "completed";
+          return true;
+        });
       }
     }
 
@@ -128,7 +195,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
     }
 
     return result;
-  }, [tasks, filter, viewMode, sortConfig, getAssignedUser]);
+  }, [tasks, filter, dateFilter, viewMode, sortConfig, getAssignedUser]);
 
   const isAllSelected = sortedTasks.length > 0 && selectedIds.size === sortedTasks.length;
   const isSomeSelected = selectedIds.size > 0 && selectedIds.size < sortedTasks.length;
@@ -152,30 +219,30 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
   };
 
   const handleBulkArchive = async () => {
-    const ids =
-      selectedIds.size > 0
-        ? Array.from(selectedIds)
-        : sortedTasks.map((t) => t.id);
+    const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (confirm(`¿Estás seguro de que quieres archivar ${ids.length} tareas?`)) {
-      await bulkArchiveTasks(ids);
-      setSelectedIds(new Set());
+    if (confirmAction(`¿Estás seguro de que quieres archivar ${ids.length} tareas?`)) {
+      const result = await bulkArchiveTasks(ids);
+      if (result?.success) {
+        setSelectedIds(new Set());
+        toast.success(`${ids.length} tarea${ids.length !== 1 ? "s" : ""} archivada${ids.length !== 1 ? "s" : ""}`);
+      } else if (result?.error) toast.error(result.error);
     }
   };
 
   const handleBulkDelete = async () => {
-    const ids =
-      selectedIds.size > 0
-        ? Array.from(selectedIds)
-        : sortedTasks.map((t) => t.id);
+    const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     if (
-      confirm(
+      confirmAction(
         `¿Estás seguro de que quieres ELIMINAR definitivamente ${ids.length} tareas? Esta acción no se puede deshacer.`
       )
     ) {
-      await bulkDeleteTasks(ids);
-      setSelectedIds(new Set());
+      const result = await bulkDeleteTasks(ids);
+      if (result?.success) {
+        setSelectedIds(new Set());
+        toast.success(`${ids.length} tarea${ids.length !== 1 ? "s" : ""} eliminada${ids.length !== 1 ? "s" : ""}`);
+      } else if (result?.error) toast.error(result.error);
     }
   };
 
@@ -183,18 +250,11 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
     const newStatus = task.status === "completed" ? "pending" : "completed";
     const result = await updateTaskStatus(task.id, newStatus);
     if (!result?.success && result?.error) {
-      alert(result.error);
+      toast.error(result.error);
+    } else if (result?.success) {
+      toast.success(newStatus === "completed" ? "Tarea completada" : "Tarea pendiente");
     }
   }
-
-  const isNearDeadline = (dateStr: string) => {
-    if (!validDate(dateStr)) return false;
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffTime = d.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 2 && diffDays >= 0;
-  };
 
   const SortableHeader = ({ label, sortKey, className }: { label: string, sortKey?: SortKey, className?: string }) => {
     const isActive = sortConfig?.key === sortKey;
@@ -229,7 +289,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
     <div className="space-y-4">
       
       {/* --- PESTAÑAS PRINCIPALES --- */}
-      <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-800 mb-6">
+      <div className="flex items-center gap-6 border-b border-slate-200/80 dark:border-slate-800 mb-6 bg-white/60 dark:bg-slate-900/40 rounded-t-xl px-2 pt-2 pb-1">
         <button
           onClick={() => {
             setViewMode("active");
@@ -283,7 +343,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                 <div className="flex items-center gap-2 w-full">
                     
                     {/* Filtros (Diseño Vertical Compacto) */}
-                    <div className="flex-1 flex items-stretch gap-1 p-1 bg-slate-50 dark:bg-slate-900 rounded-lg border shadow-sm">
+                    <div className="flex-1 flex items-stretch gap-1 p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                         {(["all", "pending", "completed"] as const).map((opt) => {
                             const count = opt === "all"
                                 ? tasks.filter(t => !t.isArchived).length
@@ -319,8 +379,27 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                         })}
                     </div>
 
+                    {/* Filtro por fecha */}
+                    <div className="flex items-center gap-1 p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        {(["all", "today", "week", "overdue"] as const).map((opt) => (
+                            <button
+                                key={opt}
+                                onClick={() => setDateFilter(opt)}
+                                aria-label={opt === "all" ? "Todas las fechas" : opt === "today" ? "Vencen hoy" : opt === "week" ? "Esta semana" : "Vencidas"}
+                                className={cn(
+                                    "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all whitespace-nowrap",
+                                    dateFilter === opt
+                                        ? "bg-white shadow-sm border border-slate-200 dark:bg-slate-800 text-primary"
+                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                                )}
+                            >
+                                {opt === "all" ? "Fechas" : opt === "today" ? "Hoy" : opt === "week" ? "Semana" : "Vencidas"}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Selector de Vista (Fijo a la derecha) */}
-                    <div className="flex-none flex items-center p-1 bg-slate-50 dark:bg-slate-900 rounded-lg border shadow-sm h-full self-stretch">
+                    <div className="flex-none flex items-center p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm h-full self-stretch">
                         <button 
                             onClick={() => setLayout("list")} 
                             className={cn(
@@ -328,8 +407,9 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 layout === "list" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
                             )} 
                             title="Lista"
+                            aria-label="Vista lista"
                         >
-                            <List className="w-4 h-4" />
+                            <List className="w-4 h-4" aria-hidden />
                         </button>
                         <button 
                             onClick={() => setLayout("board")} 
@@ -338,8 +418,9 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 layout === "board" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
                             )} 
                             title="Tablero"
+                            aria-label="Vista tablero"
                         >
-                            <Kanban className="w-4 h-4" />
+                            <Kanban className="w-4 h-4" aria-hidden />
                         </button>
                     </div>
                 </div>
@@ -353,16 +434,16 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
           {viewMode === "active" && (
             <button
               onClick={handleBulkArchive}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all shadow-sm whitespace-nowrap bg-black dark:bg-slate-900 hover:bg-slate-800"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-slate-900 dark:text-slate-100 transition-all shadow-sm whitespace-nowrap bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700"
             >
-              <Archive className="w-4 h-4" /> Archivar
+              <Archive className="w-4 h-4" /> Archivar seleccionadas
             </button>
           )}
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all shadow-sm whitespace-nowrap bg-red-600 hover:bg-red-700"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white transition-all shadow-sm whitespace-nowrap bg-red-600 hover:bg-red-700"
           >
-            <Trash2 className="w-4 h-4" /> Eliminar
+            <Trash2 className="w-4 h-4" /> Eliminar seleccionadas
           </button>
         </div>
       </div>
@@ -373,34 +454,38 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
             <TaskBoard tasks={sortedTasks} users={users} currentUser={currentUser} />
          </div>
       ) : (
-        <div className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden shadow-sm animate-in fade-in duration-300">
+        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-950/80 overflow-hidden shadow-md animate-in fade-in duration-300 backdrop-blur">
             {/* Mobile Card View */}
             <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
             {sortedTasks.length === 0 && (
-                <div className="p-12 flex flex-col items-center justify-center text-center text-slate-400 gap-4">
+                <div className="p-12 md:p-16 flex flex-col items-center justify-center text-center gap-4 min-h-[200px]">
                     {viewMode === 'active' ? (
                         <>
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                                <CheckSquare className="w-8 h-8 text-slate-300" />
+                            <div className="w-20 h-20 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center">
+                                <CheckSquare className="w-10 h-10 text-primary/70" />
                             </div>
-                            <p>No hay tareas</p>
+                            <div>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200">No hay tareas</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Crea una con el botón &quot;Nueva Tarea&quot;</p>
+                            </div>
                         </>
                     ) : (
                         <>
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                                <Archive className="w-8 h-8 text-slate-300" />
+                            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                                <Archive className="w-10 h-10 text-slate-400" />
                             </div>
-                            <p>No hay tareas archivadas</p>
+                            <div>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200">No hay tareas archivadas</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Las tareas archivadas aparecerán aquí</p>
+                            </div>
                         </>
                     )}
                 </div>
             )}
             {sortedTasks.map((task) => {
                     const assignee = getAssignedUser(task.assignedUserId);
-                    const isOverdue = validDate(task.deadline) && 
-                                    new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
-                                    task.status !== 'completed';
-                    const isUrgent = isNearDeadline(task.deadline) && task.status !== "completed";
+                    const overdue = isOverdue(task.deadline, task.status);
+                    const urgentSoon = isNearDeadline(task.deadline, task.status);
                     const isPriority = task.priority === 'urgent';
 
                     return (
@@ -424,7 +509,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                         </span>
                                     ) : null}
                                 </div>
-                                {isOverdue ? (
+                                {overdue ? (
                                     <span className="text-[8px] bg-rose-50 text-rose-600 font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 border border-rose-100">
                                         Vencido
                                     </span>
@@ -435,10 +520,12 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 )}
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                                <span className={cn(
-                                    "flex items-center gap-1", 
-                                    isOverdue ? "text-rose-500 font-bold" : isUrgent ? "text-amber-500" : "text-primary/80"
-                                )}>
+                                <span
+                                  className={cn(
+                                    "flex items-center gap-1",
+                                    overdue ? "text-rose-500 font-bold" : urgentSoon ? "text-amber-500" : "text-primary/80"
+                                  )}
+                                >
                                 <CalendarIcon className="w-3 h-3" /> {formatDate(task.deadline)}
                                 </span>
                                 {assignee && (
@@ -468,32 +555,19 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                         </div>
 
                         <div className="flex items-center justify-between mt-1">
-                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <TaskFormDialog 
-                                users={users} 
-                                task={task} 
-                                currentUser={currentUser}
-                                trigger={
-                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-primary hover:bg-slate-50 rounded-lg"><Edit className="w-3.5 h-3.5" /><span>Editar</span></button>
-                                }
-                            />
-                            {!task.isArchived && (
-                                <button
-                                  onClick={() => bulkArchiveTasks([task.id])}
-                                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                >
-                                  <Archive className="w-3.5 h-3.5" />
-                                  <span>Archivar</span>
+                              users={users} 
+                              task={task} 
+                              currentUser={currentUser}
+                              trigger={
+                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-primary hover:bg-slate-50 rounded-lg">
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Editar</span>
                                 </button>
-                            )}
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Eliminar</span>
-                            </button>
-                        </div>
+                              }
+                            />
+                          </div>
                         </div>
                     </div>
                     );
@@ -509,6 +583,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                     <button 
                         onClick={toggleSelectAll}
                         className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        aria-label={isAllSelected ? "Quitar selección de todas" : "Seleccionar todas las tareas"}
                     >
                         {isAllSelected ? (
                         <CheckSquare className="w-4 h-4 text-primary" />
@@ -532,15 +607,35 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                 </tr>
                 </thead>
                 <tbody className="divide-y dark:divide-slate-800">
-                {sortedTasks.map((task) => {
-                        const isUrgent =
-                        isNearDeadline(task.deadline) &&
-                        task.status !== "completed";
+                {sortedTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 md:px-6 py-12 md:py-16 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        {viewMode === 'active' ? (
+                          <>
+                            <div className="w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center">
+                              <CheckSquare className="w-8 h-8 text-primary/70" />
+                            </div>
+                            <p className="font-semibold text-slate-700 dark:text-slate-200">No hay tareas</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Crea una con el botón &quot;Nueva Tarea&quot;</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                              <Archive className="w-8 h-8 text-slate-400" />
+                            </div>
+                            <p className="font-semibold text-slate-700 dark:text-slate-200">No hay tareas archivadas</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Las tareas archivadas aparecerán aquí</p>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : sortedTasks.map((task) => {
+                        const urgentSoon = isNearDeadline(task.deadline, task.status);
                         const assignee = getAssignedUser(task.assignedUserId);
                         const isPriority = task.priority === 'urgent';
-                        const isOverdue = validDate(task.deadline) && 
-                                        new Date(task.deadline).getTime() < new Date().setHours(0,0,0,0) && 
-                                        task.status !== 'completed';
+                        const overdue = isOverdue(task.deadline, task.status);
 
                         return (
                         <tr
@@ -577,7 +672,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                         ) : null}
                                     </div>
                                 </div>
-                                {isOverdue ? (
+                                {overdue ? (
                                      <span className="text-[9px] text-rose-600 font-bold px-1.5 py-0.5 bg-rose-50 rounded uppercase tracking-wider flex items-center gap-1 border border-rose-100 w-fit">
                                         <AlertCircle className="w-2.5 h-2.5" /> Vencido
                                     </span>
@@ -586,7 +681,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                         <AlertTriangle className="w-2.5 h-2.5" /> Urgente
                                     </span>
                                 )}
-                                {(!isOverdue && !isPriority && isUrgent) && (
+                                {(!overdue && !isPriority && urgentSoon) && (
                                     <span className="text-[10px] text-amber-600 flex items-center gap-1 font-medium">
                                         <Clock className="w-3 h-3" /> Pronta a vencer
                                     </span>
@@ -600,17 +695,19 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                             </span>
                             </td>
                             <td
-                            className={cn(
+                              className={cn(
                                 "px-4 md:px-6 py-4",
-                                isUrgent && "text-red-600 font-bold",
-                            )}
+                                urgentSoon && "text-red-600 font-bold"
+                              )}
                             >
                             <div className="flex flex-col gap-1">
-                                <span className={cn(
+                                <span
+                                  className={cn(
                                     "flex items-center gap-1 font-medium",
-                                    isOverdue ? "text-rose-500 font-bold" : isUrgent ? "text-amber-500" : "text-slate-500"
-                                )}>
-                                <CalendarIcon className={cn("w-3.5 h-3.5", isOverdue ? "text-rose-500" : "text-slate-400")} />
+                                    overdue ? "text-rose-500 font-bold" : urgentSoon ? "text-amber-500" : "text-slate-500"
+                                  )}
+                                >
+                                <CalendarIcon className={cn("w-3.5 h-3.5", overdue ? "text-rose-500" : "text-slate-400")} />
                                 {task.frequency === "date_range" && task.startDate
                                   ? `${formatDate(task.startDate)} - ${formatDate(task.deadline)}`
                                   : formatDate(task.deadline)}
@@ -650,54 +747,31 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 <input
                                 className="text-xs border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 bg-transparent focus:outline-none min-w-0 flex-1 dark:text-slate-300 placeholder:text-slate-400"
                                 defaultValue={task.notes}
-                                onBlur={(e) =>
-                                    updateTaskNotes(task.id, e.target.value)
-                                }
+                                onBlur={async (e) => {
+                                    const v = e.target.value;
+                                    const result = await updateTaskNotes(task.id, v);
+                                    if (result?.success) toast.success("Nota guardada");
+                                    else if (result?.error) toast.error(result.error);
+                                }}
                                 placeholder="Añadir nota..."
                                 />
                                 <div className="flex items-center gap-0.5 shrink-0 flex-nowrap">
-                                {!task.isArchived && (
-                                    <>
+                                  {!task.isArchived && (
                                     <TaskFormDialog 
-                                        users={users} 
-                                        task={task} 
-                                        currentUser={currentUser}
-                                        trigger={
+                                      users={users} 
+                                      task={task} 
+                                      currentUser={currentUser}
+                                      trigger={
                                         <button
-                                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-primary hover:bg-primary/5 rounded transition-all"
-                                            title="Editar"
+                                          className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-primary hover:bg-primary/5 rounded transition-all"
+                                          title="Editar"
                                         >
-                                            <Edit className="w-3 h-3" />
-                                            <span>Editar</span>
+                                          <Edit className="w-3 h-3" />
+                                          <span>Editar</span>
                                         </button>
-                                        }
+                                      }
                                     />
-                                    <button
-                                      onClick={async () => {
-                                        if (confirm("¿Archivar esta tarea?")) {
-                                          await bulkArchiveTasks([task.id]);
-                                        }
-                                      }}
-                                      className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-slate-800 rounded transition-all"
-                                      title="Archivar"
-                                    >
-                                      <Archive className="w-3 h-3" />
-                                      <span>Archivar</span>
-                                    </button>
-                                    </>
-                                )}
-                                <button
-                                    onClick={async () => {
-                                    if (confirm("¿ELIMINAR esta tarea definitivamente?")) {
-                                        await deleteTask(task.id);
-                                    }
-                                    }}
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
-                                    title="Eliminar"
-                                >
-                                    <Trash2 className="w-3 h-3" />
-                                    <span>Eliminar</span>
-                                </button>
+                                  )}
                                 </div>
                             </div>
                             </td>

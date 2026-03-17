@@ -2,10 +2,12 @@
 
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
-import { TaskGroup } from '@/types';
+import { useRouter } from 'next/navigation';
+import { TaskGroup, User } from '@/types';
 import { createTaskGroup, deleteTaskGroup, updateTaskGroup } from '@/actions/task-groups';
 import { cn } from '@/lib/utils';
-import { FolderKanban, Plus, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, FolderKanban, Plus, Trash2, User as UserIcon, RefreshCw } from 'lucide-react';
+import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 
 const DEFAULT_COLOR = '#0f766e';
 const COLOR_OPTIONS = ['#0f766e', '#0ea5e9', '#eab308', '#f97316', '#6366f1'];
@@ -13,9 +15,12 @@ const COLOR_OPTIONS = ['#0f766e', '#0ea5e9', '#eab308', '#f97316', '#6366f1'];
 interface TaskGroupsManagerProps {
   groups: TaskGroup[];
   canManage: boolean;
+  users: User[];
+  currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
 }
 
-export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps) {
+export function TaskGroupsManager({ groups, canManage, users, currentUser }: TaskGroupsManagerProps) {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>(DEFAULT_COLOR);
@@ -24,6 +29,16 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
   const [editDescription, setEditDescription] = useState('');
   const [editColor, setEditColor] = useState<string>(DEFAULT_COLOR);
   const [editPending, setEditPending] = useState(false);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
+  const [supervisorUserId, setSupervisorUserId] = useState(currentUser?.id ?? '');
+  const [listType, setListType] = useState<'one_time' | 'permanent'>('one_time');
+  const [dueDate, setDueDate] = useState('');
+  const [createdTaskDefaults, setCreatedTaskDefaults] = useState<{
+    assignedUserId: string;
+    frequency: string;
+    deadline: string;
+  } | null>(null);
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,12 +48,28 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
     const form = e.currentTarget;
     const formData = new FormData(form);
     formData.set('color', selectedColor);
+    formData.set('supervisorUserId', supervisorUserId);
+    formData.set('listType', listType);
+    formData.set('dueDate', dueDate);
+    const taskDefaults = {
+      assignedUserId: supervisorUserId,
+      frequency: listType,
+      deadline: dueDate,
+    };
     const result = await createTaskGroup(formData);
     if (!result?.success && result?.error) {
       setError(result.error);
     } else {
+      setCreatedTaskDefaults(taskDefaults);
       form.reset();
       setSelectedColor(DEFAULT_COLOR);
+      setSupervisorUserId(currentUser?.id ?? '');
+      setListType('one_time');
+      setDueDate('');
+      if (result?.groupId) {
+        setCreatedGroupId(result.groupId);
+        setShowTaskDialog(true);
+      }
     }
     setPending(false);
   }
@@ -93,7 +124,7 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
           <FolderKanban className="w-4 h-4 text-primary" />
-          Tareas Agrupadas
+          Listas de Tareas
         </h2>
         {groups.length === 0 ? (
           <p className="text-xs text-slate-500">
@@ -233,12 +264,12 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
             <Plus className="w-4 h-4 text-primary" />
-            Nuevo grupo
+            Nueva Lista
           </h3>
           <form onSubmit={handleCreate} className="space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-600" htmlFor="group-name">
-                Nombre del grupo
+                Nombre
               </label>
               <input
                 id="group-name"
@@ -248,6 +279,65 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 placeholder="Ej: Auditorías mensuales, Inventario, Turno Noche..."
               />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-supervisor">
+                <UserIcon className="w-3 h-3" />
+                Asignar a
+              </label>
+              <select
+                id="group-supervisor"
+                name="supervisorUserId"
+                value={supervisorUserId}
+                onChange={(e) => setSupervisorUserId(e.target.value)}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-type">
+                  <RefreshCw className="w-3 h-3" />
+                  Frecuencia
+                </label>
+                <select
+                  id="group-type"
+                  name="listType"
+                  value={listType}
+                  onChange={(e) => {
+                    const nextType = e.target.value as 'one_time' | 'permanent';
+                    setListType(nextType);
+                    if (nextType === 'permanent') setDueDate('');
+                  }}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                >
+                  <option value="one_time">Una vez</option>
+                  <option value="permanent">Frecuente / permanente</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
+                  <CalendarIcon className="w-3 h-3" />
+                  Vencimiento
+                </label>
+                <input
+                  id="group-due-date"
+                  name="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  required={listType === 'one_time'}
+                  disabled={listType === 'permanent'}
+                />
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-600" htmlFor="group-description">
@@ -290,10 +380,38 @@ export function TaskGroupsManager({ groups, canManage }: TaskGroupsManagerProps)
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90 disabled:bg-slate-300 transition-colors"
             >
               <Plus className="w-3 h-3" />
-              {pending ? 'Creando...' : 'Crear grupo'}
+              {pending ? 'Creando...' : 'Crear Lista'}
             </button>
           </form>
         </section>
+      )}
+
+      {canManage && createdGroupId && (
+        <TaskFormDialog
+          users={users}
+          currentUser={currentUser}
+          groupId={createdGroupId}
+          defaultAssignedUserId={createdTaskDefaults?.assignedUserId}
+          defaultFrequency={createdTaskDefaults?.frequency}
+          defaultDeadline={createdTaskDefaults?.deadline}
+          open={showTaskDialog}
+          onOpenChange={(next) => {
+            setShowTaskDialog(next);
+            if (!next) {
+              setCreatedGroupId(null);
+              setCreatedTaskDefaults(null);
+            }
+          }}
+          onTaskCreated={(groupId) => {
+            const wantsMore = window.confirm('¿Desea agregar más tareas a la lista?');
+            setShowTaskDialog(false);
+            setCreatedGroupId(null);
+            setCreatedTaskDefaults(null);
+            if (wantsMore && groupId) {
+              router.push(`/groups/${groupId}`);
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -13,6 +13,12 @@ function mapTaskGroup(row: QueryResultRow): TaskGroup {
     description: (row as any).description || '',
     color: (row as any).color || null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+    supervisorUserId: (row as any).supervisor_user_id || null,
+    responsibleUserId: (row as any).responsible_user_id || null,
+    listType: (row as any).list_type || 'one_time',
+    dueDate: (row as any).due_date ? new Date((row as any).due_date).toISOString().split('T')[0] : null,
+    lastCompletedAt: (row as any).last_completed_at ? new Date((row as any).last_completed_at).toISOString() : null,
+    lastCompletedBy: (row as any).last_completed_by || null,
   };
 }
 
@@ -70,7 +76,14 @@ const groupSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio').max(255),
   description: z.string().max(1000).optional(),
   color: z.string().max(20).optional().nullable(),
+  supervisorUserId: z.string().uuid().optional().nullable(),
+  listType: z.enum(['one_time', 'permanent']).default('one_time'),
+  dueDate: z.string().optional().nullable(),
 });
+
+function normalizeGroupName(name: string) {
+  return name.trim().toLowerCase();
+}
 
 export async function createTaskGroup(formData: FormData) {
   const session = await auth();
@@ -87,6 +100,9 @@ export async function createTaskGroup(formData: FormData) {
     name: formData.get('name'),
     description: formData.get('description') ?? '',
     color: formData.get('color') ?? '',
+    supervisorUserId: formData.get('supervisorUserId') || null,
+    listType: formData.get('listType') || 'one_time',
+    dueDate: formData.get('dueDate') || null,
   });
 
   if (!parsed.success) {
@@ -94,9 +110,24 @@ export async function createTaskGroup(formData: FormData) {
     return { success: false, error: first?.message ?? 'Datos inválidos' };
   }
 
-  const { name, description, color } = parsed.data;
+  const { name, description, color, supervisorUserId, listType, dueDate } = parsed.data;
 
   try {
+    const existing = await sql`
+      SELECT id
+      FROM task_groups
+      WHERE LOWER(name) = ${normalizeGroupName(name)}
+      LIMIT 1
+    `;
+
+    if (existing.rows.length > 0) {
+      return { success: false, error: 'Ya existe una lista con ese nombre.' };
+    }
+
+    if (listType === 'one_time' && !dueDate) {
+      return { success: false, error: 'La fecha de vencimiento es obligatoria para listas de uso único.' };
+    }
+
     // Pequeña ayuda visual: color por defecto (verde)
     const defaultColor = '#0f766e';
     const finalColor =
@@ -104,13 +135,22 @@ export async function createTaskGroup(formData: FormData) {
         ? color.trim()
         : defaultColor;
 
-    await sql`
-      INSERT INTO task_groups (name, description, color, created_by)
-      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id})
+    const { rows } = await sql`
+      INSERT INTO task_groups (
+        name,
+        description,
+        color,
+        created_by,
+        supervisor_user_id,
+        list_type,
+        due_date
+      )
+      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id}, ${supervisorUserId || null}, ${listType}, ${listType === 'one_time' ? dueDate : null})
+      RETURNING id
     `;
 
     revalidatePath('/groups');
-    return { success: true };
+    return { success: true, groupId: rows[0]?.id as string };
   } catch (error) {
     console.error('Error creating task group:', error);
     return { success: false, error: 'No se pudo crear el grupo. Intenta de nuevo.' };
@@ -141,6 +181,18 @@ export async function updateTaskGroup(
       : null;
 
   try {
+    const existing = await sql`
+      SELECT id
+      FROM task_groups
+      WHERE LOWER(name) = ${normalizeGroupName(name)}
+        AND id <> ${id}
+      LIMIT 1
+    `;
+
+    if (existing.rows.length > 0) {
+      return { success: false, error: 'Ya existe una lista con ese nombre.' };
+    }
+
     await sql`
       UPDATE task_groups
       SET name = ${name}, description = ${description || null}, color = ${finalColor}
