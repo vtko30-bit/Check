@@ -71,7 +71,18 @@ export function TaskDetailModal({ task, tasks, isOpen, onClose }: TaskDetailModa
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+          {currentTask.description?.trim() ? (
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Descripción
+              </span>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white rounded-lg border border-slate-200 p-3">
+                {currentTask.description}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
             {subtasks.length > 0 ? (
               subtasks.map((st) => (
                 <div
@@ -105,7 +116,7 @@ export function TaskDetailModal({ task, tasks, isOpen, onClose }: TaskDetailModa
                 </div>
               ))
             ) : (
-              <div className="text-center py-6 text-slate-400 italic text-sm">
+              <div className="text-center py-4 text-slate-400 italic text-sm">
                 No hay subpasos definidos.
               </div>
             )}
