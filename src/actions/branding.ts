@@ -3,6 +3,7 @@
 import { sql } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
+import { validateLogoBase64 } from '@/lib/branding-validation';
 
 export async function getBranding() {
   if (!process.env.POSTGRES_URL) return null;
@@ -53,6 +54,11 @@ export async function removeBranding() {
 export async function updateBranding(logoBase64: string) {
   const accessError = await assertAdminBrandingAccess();
   if (accessError) return accessError;
+
+  const validation = validateLogoBase64(logoBase64);
+  if (!validation.ok) {
+    return { success: false, error: validation.error };
+  }
 
   try {
     // Check if key exists

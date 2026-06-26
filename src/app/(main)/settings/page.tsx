@@ -9,6 +9,11 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
+  const user = session.user as { role?: string };
+  if (user.role !== 'admin') {
+    redirect('/');
+  }
+
   const companyLogo = await getBranding();
 
   return (

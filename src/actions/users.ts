@@ -6,6 +6,12 @@ import { User } from '@/types';
 import bcrypt from 'bcryptjs';
 import { auth } from '@/auth';
 import { z } from 'zod';
+import {
+  canAssignAdminRole,
+  getSessionUser,
+  isAdminOrEditor,
+} from '@/lib/auth-helpers';
+import { toPublicUserList } from '@/lib/users-queries';
 
 const createUserSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio').max(255),
@@ -15,20 +21,24 @@ const createUserSchema = z.object({
   canViewAllTasks: z.union([z.boolean(), z.literal('on'), z.string()]).optional(),
 });
 
-// Helper to map DB row to User type if needed, strict typing
-function mapUser(row: any): User {
+function mapUser(row: Record<string, unknown>): User {
   return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
+    id: row.id as string,
+    name: row.name as string,
+    email: row.email as string,
     role: row.role as 'admin' | 'editor' | 'viewer',
-    avatarUrl: row.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.name}`,
+    avatarUrl:
+      (row.avatar_url as string) ||
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.name}`,
     isActive: row.is_active !== false,
     canViewAllTasks: row.can_view_all_tasks === true,
   };
 }
 
 export async function getUsers(): Promise<User[]> {
+  const currentUser = await getSessionUser();
+  if (!currentUser?.id) return [];
+
   try {
     const timeout = new Promise<{ rows: unknown[] }>((resolve) =>
       setTimeout(() => resolve({ rows: [] }), 20000)
@@ -37,7 +47,13 @@ export async function getUsers(): Promise<User[]> {
       sql`SELECT * FROM users ORDER BY name ASC`,
       timeout,
     ]);
-    return rows.map(mapUser);
+    const users = rows.map((row) => mapUser(row as Record<string, unknown>));
+
+    if (isAdminOrEditor(currentUser)) {
+      return users;
+    }
+
+    return toPublicUserList(users);
   } catch (error) {
     console.error('Error in getUsers:', error);
     return [];
@@ -51,7 +67,6 @@ export async function createUser(formData: FormData) {
     return { success: false, error: 'No autorizado. Solo Super Admin y Administradores pueden crear usuarios.' };
   }
 
-  const canViewAllRaw = formData.get('canViewAllTasks') === 'on' || formData.get('canViewAllTasks') === 'true';
   const parsed = createUserSchema.safeParse({
     name: formData.get('name'),
     email: formData.get('email'),
@@ -63,7 +78,15 @@ export async function createUser(formData: FormData) {
     return { success: false, error: first?.message ?? 'Datos inválidos' };
   }
   const { name, email, role, password } = parsed.data;
-  const canViewAll = role === 'admin' || canViewAllRaw;
+
+  if (!canAssignAdminRole(user) && role === 'admin') {
+    return { success: false, error: 'Solo un administrador puede asignar el rol de administrador.' };
+  }
+
+  const canViewAllRaw =
+    formData.get('canViewAllTasks') === 'on' || formData.get('canViewAllTasks') === 'true';
+  const canViewAll =
+    role === 'admin' || (canAssignAdminRole(user) && canViewAllRaw);
   const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -169,7 +192,13 @@ export async function updateUser(
     return { success: false, error: first?.message ?? 'Datos inválidos' };
   }
   const { name, email, role, canViewAllTasks, newPassword } = parsed.data;
-  const finalCanViewAll = role === 'admin' || (canViewAllTasks ?? false);
+
+  if (!canAssignAdminRole(currentUser) && role === 'admin') {
+    return { success: false, error: 'Solo un administrador puede asignar el rol de administrador.' };
+  }
+
+  const finalCanViewAll =
+    role === 'admin' || (canAssignAdminRole(currentUser) && (canViewAllTasks ?? false));
 
   const canSetPassword = currentUser?.role === 'admin';
   const passwordToSet = canSetPassword && newPassword && newPassword.trim().length >= 6 ? newPassword.trim() : null;

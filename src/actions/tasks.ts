@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { Task, SubTask } from '@/types';
-import { createNotification } from '@/actions/notifications';
+import { insertNotification } from '@/lib/notifications-db';
 import { auth } from '@/auth';
 import { z } from 'zod';
 
@@ -257,17 +257,6 @@ export async function getTasksByGroup(
   }
 }
 
-// Versión sin autenticación, pensada para procesos de backend (cron, reportes, etc.)
-export async function getAllTasksForReports(): Promise<Task[]> {
-  try {
-    const { rows } = await sql`SELECT * FROM tasks ORDER BY deadline ASC`;
-    return rows.map(mapTask);
-  } catch (error) {
-    console.error("Error in getAllTasksForReports:", error);
-    return [];
-  }
-}
-
 export async function archiveTask(taskId: string) {
   try {
     const user = await getCurrentUser();
@@ -443,7 +432,7 @@ export async function createTask(formData: FormData) {
         const creatorName = (session.user as any)?.name || 'un usuario';
         const safeTitle = title.length > 80 ? `${title.slice(0, 77)}...` : title;
         for (const admin of admins) {
-          await createNotification(
+          await insertNotification(
             admin.id,
             `Nueva tarea pendiente de asignación: "${safeTitle}" creada por ${creatorName}.`
           );
@@ -557,52 +546,5 @@ export async function setTaskGroup(taskId: string, groupId: string | null) {
   } catch (error) {
     console.error('Error updating task group:', error);
     return { success: false, error: 'No se pudo mover la tarea de grupo.' };
-  }
-}
-
-export async function checkOverdueTasks() {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Find tasks that are overdue and haven't notified admins yet
-    let overdueTasks: Pick<Task, 'id' | 'title'>[] = [];
-    try {
-      const { rows } = await sql`
-        SELECT id, title FROM tasks 
-        WHERE deadline < ${today} 
-        AND status != 'completed' 
-        AND (overdue_notified IS FALSE OR overdue_notified IS NULL)
-      `;
-      overdueTasks = rows as Pick<Task, 'id' | 'title'>[];
-    } catch (dbError: unknown) {
-      if (dbError instanceof Error && dbError.message?.includes('overdue_notified')) {
-        console.warn("[Database] 'overdue_notified' column not found. Please visit /api/seed to update the schema.");
-        return { success: true, count: 0, warning: "DB_OUTDATED" };
-      }
-      throw dbError;
-    }
-
-    if (overdueTasks.length > 0) {
-      console.log(`[Overdue] Found ${overdueTasks.length} overdue tasks to notify`);
-      const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
-      
-      for (const task of overdueTasks) {
-        for (const admin of admins) {
-          await sql`
-            INSERT INTO notifications (user_id, message, created_at)
-            VALUES (${admin.id}, ${`¡PLAZO VENCIDO! "${task.title}" ha superado su fecha límite.`}, NOW())
-          `;
-        }
-        // Mark as notified so we don't spam
-        await sql`UPDATE tasks SET overdue_notified = TRUE WHERE id = ${task.id}`;
-      }
-      
-      return { success: true, count: overdueTasks.length };
-    }
-    
-    return { success: true, count: 0 };
-  } catch (error) {
-    console.error("Error checking overdue tasks:", error);
-    return { success: false };
   }
 }

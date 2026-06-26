@@ -1,26 +1,17 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { isBearerAuthorized } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.DB_CHECK_SECRET;
-  if (!secret) return process.env.NODE_ENV !== 'production';
-  const auth = request.headers.get('authorization');
-  return auth === `Bearer ${secret}`;
-}
 
 /**
  * GET /api/db-check
  * Verifica la conexión a la base de datos y el estado de las tablas.
- * Requiere Authorization: Bearer <DB_CHECK_SECRET> en producción.
+ * Requiere Authorization: Bearer <DB_CHECK_SECRET>.
  */
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isBearerAuthorized(request, 'DB_CHECK_SECRET')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
-  if (process.env.NODE_ENV === 'production' && !process.env.DB_CHECK_SECRET) {
-    return NextResponse.json({ error: 'Deshabilitado en producción' }, { status: 403 });
   }
 
   const checks: Record<string, { ok: boolean; detail?: string; error?: string }> = {};

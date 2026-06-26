@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { Notification } from '@/types';
 import { auth } from '@/auth';
+import { isAdmin } from '@/lib/auth-helpers';
+import { insertNotification } from '@/lib/notifications-db';
 
 function mapNotification(row: QueryResultRow): Notification {
   return {
@@ -98,12 +100,15 @@ export async function markAllAsRead(userId: string) {
 }
 
 export async function createNotification(userId: string, message: string) {
+  const currentUser = await auth();
+  const user = currentUser?.user as { role?: string } | undefined;
+
+  if (!user || !isAdmin(user)) {
+    return { success: false, error: 'No autorizado. Solo administradores pueden crear notificaciones.' };
+  }
+
   try {
-    await sql`
-      INSERT INTO notifications (user_id, message)
-      VALUES (${userId}, ${message})
-    `;
-    revalidatePath('/');
+    await insertNotification(userId, message);
     return { success: true };
   } catch (error) {
     console.error('Error creating notification:', error);

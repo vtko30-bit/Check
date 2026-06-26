@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { isBearerAuthorized } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.SEED_SECRET;
-  if (!secret) return process.env.NODE_ENV !== 'production';
-  const auth = request.headers.get('authorization');
-  return auth === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isBearerAuthorized(request, 'SEED_SECRET')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   if (process.env.NODE_ENV === 'production') {
@@ -153,8 +147,6 @@ export async function GET(request: Request) {
         INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
         VALUES ('Admin', ${demoEmail}, 'admin', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', ${hashedPassword}, TRUE)
       `;
-    } else {
-        await sql`UPDATE users SET password = ${hashedPassword}, can_view_all_tasks = TRUE WHERE email = ${demoEmail}`;
     }
 
     return NextResponse.json({ success: true, message: 'Database seeded/updated successfully for Auth' });
