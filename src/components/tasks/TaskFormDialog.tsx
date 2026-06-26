@@ -9,6 +9,7 @@ import { createTask, updateTask } from '@/actions/tasks';
 import { Plus, Calendar as CalendarIcon, User as UserIcon, FileText, RefreshCw, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { User, Task } from '@/types';
+import { VoiceInputButton } from '@/components/tasks/VoiceInputButton';
 
 interface TaskFormDialogProps {
   users: User[];
@@ -45,6 +46,7 @@ export function TaskFormDialog({
       ? 'weekly_1'
       : (task?.frequency || defaultFrequency || 'one_time')
   );
+  const [description, setDescription] = useState(task?.description ?? '');
 
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -54,13 +56,14 @@ export function TaskFormDialog({
   useEffect(() => {
     if (open) {
       setError(null);
+      setDescription(task?.description ?? '');
       setFrequency(
         task?.frequency === 'monday'
           ? 'weekly_1'
           : (task?.frequency || defaultFrequency || 'one_time')
       );
     }
-  }, [open, task?.frequency, defaultFrequency]);
+  }, [open, task?.description, task?.frequency, defaultFrequency]);
   const isEdit = !!task;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -273,15 +276,25 @@ export function TaskFormDialog({
 
             {/* Descripción */}
             <div className="space-y-1.5">
-              <Label htmlFor="description" className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
-                Descripción
-              </Label>
-              <textarea 
-                id="description" 
-                name="description" 
-                defaultValue={task?.description}
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="description" className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
+                  Descripción
+                </Label>
+                <VoiceInputButton
+                  disabled={isLoading}
+                  onTranscription={(text) => {
+                    setDescription((prev) => (prev ? `${prev.trimEnd()} ${text}` : text));
+                    toast.success('Texto dictado añadido');
+                  }}
+                />
+              </div>
+              <textarea
+                id="description"
+                name="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="Detalles adicionales..."
-                className="flex min-h-[80px] w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none dark:bg-slate-900/80 dark:border-slate-700" 
+                className="flex min-h-[80px] w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none dark:bg-slate-900/80 dark:border-slate-700"
               />
             </div>
 
