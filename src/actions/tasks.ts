@@ -22,7 +22,7 @@ function checkCreateRateLimit(userId: string): boolean {
 }
 
 const taskFormSchema = z.object({
-  title: z.string().min(1, 'El título es obligatorio').max(255),
+  title: z.string().min(1, 'El título es obligatorio').max(80, 'El título no puede superar 80 caracteres'),
   description: z.string().max(2000).optional().default(''),
   assignedUserId: z.string().optional().nullable(),
   deadline: z.string().optional(),

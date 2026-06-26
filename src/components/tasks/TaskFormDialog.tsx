@@ -11,6 +11,14 @@ import { toast } from 'sonner';
 import { User, Task } from '@/types';
 import { VoiceInputButton } from '@/components/tasks/VoiceInputButton';
 
+const TITLE_MAX_LENGTH = 80;
+
+function truncateTitle(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= TITLE_MAX_LENGTH) return trimmed;
+  return trimmed.slice(0, TITLE_MAX_LENGTH).trimEnd();
+}
+
 interface TaskFormDialogProps {
   users: User[];
   task?: Task; // Optional task for edit mode
@@ -47,6 +55,7 @@ export function TaskFormDialog({
       : (task?.frequency || defaultFrequency || 'one_time')
   );
   const [description, setDescription] = useState(task?.description ?? '');
+  const [title, setTitle] = useState(task?.title ?? '');
 
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -56,6 +65,7 @@ export function TaskFormDialog({
   useEffect(() => {
     if (open) {
       setError(null);
+      setTitle(task?.title ?? '');
       setDescription(task?.description ?? '');
       setFrequency(
         task?.frequency === 'monday'
@@ -63,7 +73,7 @@ export function TaskFormDialog({
           : (task?.frequency || defaultFrequency || 'one_time')
       );
     }
-  }, [open, task?.description, task?.frequency, defaultFrequency]);
+  }, [open, task?.title, task?.description, task?.frequency, defaultFrequency]);
   const isEdit = !!task;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -137,17 +147,36 @@ export function TaskFormDialog({
           <div className="space-y-5 max-h-[65vh] overflow-y-auto px-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent dark:scrollbar-thumb-slate-700">
             {/* Titulo */}
             <div className="space-y-1.5">
-              <Label htmlFor="title" className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
-                <FileText className="w-3.5 h-3.5" /> Titulo
-              </Label>
-              <Input 
-                id="title" 
-                name="title" 
-                defaultValue={task?.title}
-                placeholder="Nombre de la tarea..." 
-                className="h-12 border-slate-200/80 dark:border-slate-700 focus:border-primary focus:ring-4 focus:ring-primary/15 text-base font-medium shadow-sm shadow-slate-100 dark:shadow-none transition-all bg-white dark:bg-slate-900/80" 
-                required 
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="title" className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
+                  <FileText className="w-3.5 h-3.5" /> Titulo
+                </Label>
+                <VoiceInputButton
+                  disabled={isLoading}
+                  onTranscription={(text) => {
+                    const next = truncateTitle(text);
+                    setTitle(next);
+                    if (text.trim().length > TITLE_MAX_LENGTH) {
+                      toast.info(`Título limitado a ${TITLE_MAX_LENGTH} caracteres`);
+                    } else {
+                      toast.success('Título dictado');
+                    }
+                  }}
+                />
+              </div>
+              <Input
+                id="title"
+                name="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+                maxLength={TITLE_MAX_LENGTH}
+                placeholder="Nombre de la tarea..."
+                className="h-12 border-slate-200/80 dark:border-slate-700 focus:border-primary focus:ring-4 focus:ring-primary/15 text-base font-medium shadow-sm shadow-slate-100 dark:shadow-none transition-all bg-white dark:bg-slate-900/80"
+                required
               />
+              <p className="text-xs text-slate-400 text-right">
+                {title.length}/{TITLE_MAX_LENGTH}
+              </p>
             </div>
 
             {/* Asignación */}
