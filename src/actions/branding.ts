@@ -21,15 +21,39 @@ export async function getBranding() {
   }
 }
 
-export async function updateBranding(logoBase64: string) {
+async function assertAdminBrandingAccess() {
   const session = await auth();
   const user = session?.user as { role?: string } | undefined;
   if (user?.role !== 'admin') {
-    return { success: false, error: 'No autorizado. Solo administradores pueden cambiar el logo.' };
+    return { success: false as const, error: 'No autorizado. Solo administradores pueden cambiar el logo.' };
   }
   if (!process.env.POSTGRES_URL) {
-    return { success: false, error: 'Base de datos no configurada. Añade POSTGRES_URL en .env' };
+    return { success: false as const, error: 'Base de datos no configurada. Añade POSTGRES_URL en .env' };
   }
+  return null;
+}
+
+export async function removeBranding() {
+  const accessError = await assertAdminBrandingAccess();
+  if (accessError) return accessError;
+
+  try {
+    await sql`DELETE FROM settings WHERE key = 'company_logo'`;
+
+    revalidatePath('/');
+    revalidatePath('/login');
+    revalidatePath('/settings');
+    return { success: true as const };
+  } catch (error) {
+    console.error('Error removing branding:', error);
+    return { success: false as const, error: (error as Error).message };
+  }
+}
+
+export async function updateBranding(logoBase64: string) {
+  const accessError = await assertAdminBrandingAccess();
+  if (accessError) return accessError;
+
   try {
     // Check if key exists
     const exists = await sql`SELECT id FROM settings WHERE key = 'company_logo'`;
@@ -49,6 +73,7 @@ export async function updateBranding(logoBase64: string) {
     
     revalidatePath('/');
     revalidatePath('/login');
+    revalidatePath('/settings');
     return { success: true };
   } catch (error) {
     console.error('Error updating branding:', error);
