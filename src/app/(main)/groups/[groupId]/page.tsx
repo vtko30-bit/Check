@@ -57,7 +57,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       <div className="flex items-center justify-end gap-3">
         <TaskFormDialog
           users={users}
-          currentUser={currentUser as any}
+          currentUser={currentUser}
           groupId={group.id}
           defaultAssignedUserId={group.supervisorUserId || undefined}
           defaultFrequency={group.listType || 'one_time'}
@@ -86,7 +86,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         <TaskBoard
           tasks={tasks}
           users={users}
-          currentUser={currentUser as any}
+          currentUser={currentUser}
         />
       </section>
     </div>

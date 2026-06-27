@@ -1,11 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { sql, QueryResultRow } from '@/lib/db';
-import { Task, SubTask } from '@/types';
-import { insertNotification } from '@/lib/notifications-db';
-import { auth } from '@/auth';
-import { z } from 'zod';
+import { sql } from '@/lib/db';
+import { SubTask, Task } from '@/types';
+import { insertNotificationsForUsers } from '@/lib/notifications-db';
+import { getSessionUser } from '@/lib/auth-helpers';
+import { mapTask } from '@/lib/task-mapper';
+import { getModifyTaskPermission, type TaskActor } from '@/lib/task-permissions';
+import { parseTaskFormData } from '@/lib/task-validation';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CREATES = 30;
@@ -21,78 +23,21 @@ function checkCreateRateLimit(userId: string): boolean {
   return true;
 }
 
-const taskFormSchema = z.object({
-  title: z.string().min(1, 'El título es obligatorio').max(80, 'El título no puede superar 80 caracteres'),
-  description: z.string().max(2000).optional().default(''),
-  assignedUserId: z.string().optional().nullable(),
-  deadline: z.string().optional(),
-  notes: z.string().optional().default(''),
-  frequency: z
-    .enum([
-      'one_time',
-      'daily',
-      'weekly',
-      'weekly_0',
-      'weekly_1',
-      'weekly_2',
-      'weekly_3',
-      'weekly_4',
-      'weekly_5',
-      'weekly_6',
-      'monday',
-      'monthly',
-      'date_range',
-    ])
-    .default('one_time'),
-  startDate: z.string().optional(),
-  priority: z.enum(['normal', 'urgent']).default('normal'),
-  groupId: z.string().uuid().optional().nullable(),
-});
-
-// --- OWNERSHIP HELPER ---
-type AuthUser = { id: string; role: string };
-
-async function getCurrentUser(): Promise<AuthUser | null> {
-  const session = await auth();
-  if (!session?.user) return null;
-  const user = session.user as AuthUser;
-  return user;
+async function getCurrentUser(): Promise<TaskActor | null> {
+  const user = await getSessionUser();
+  if (!user?.id || !user.role) return null;
+  return { id: user.id, role: user.role };
 }
 
 async function canModifyTask(
   taskId: string,
-  currentUser?: AuthUser | null
+  currentUser?: TaskActor | null
 ): Promise<{ ok: boolean; error?: string }> {
   const user = currentUser ?? (await getCurrentUser());
-  if (!user) return { ok: false, error: 'No autenticado' };
-  const isAdmin = user.role === 'admin';
-  if (isAdmin) return { ok: true };
   const { rows } = await sql`SELECT assigned_user_id FROM tasks WHERE id = ${taskId}`;
-  if (!rows?.length) return { ok: false, error: 'Tarea no encontrada' };
-  const assigned = rows[0]?.assigned_user_id;
-  if (assigned !== user.id) return { ok: false, error: 'No tienes permiso para modificar esta tarea' };
-  return { ok: true };
-}
-
-// --- MAPPER HELPER ---
-function mapTask(row: QueryResultRow): Task {
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description || '',
-    assignedUserId: row.assigned_user_id || '',
-    deadline: row.deadline ? new Date(row.deadline).toISOString().split('T')[0] : '',
-    status: row.status as 'pending' | 'in_progress' | 'completed',
-    notes: row.notes || '',
-    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-    subtasks: row.subtasks || [],
-    frequency: row.frequency || 'one_time',
-    startDate: row.start_date ? new Date(row.start_date).toISOString().split('T')[0] : undefined,
-    priority: row.priority || 'normal',
-    isArchived: !!row.is_archived,
-    isPinned: !!row.is_pinned,
-    groupId: (row as any).group_id ?? null,
-  };
+  const assigned = rows[0]?.assigned_user_id as string | null | undefined;
+  const perm = getModifyTaskPermission(user, assigned, (rows?.length ?? 0) > 0);
+  return perm.ok ? { ok: true } : { ok: false, error: perm.error };
 }
 
 // --- SUBTASKS ACTIONS ---
@@ -198,10 +143,9 @@ export async function getTasks(
   viewMode: TaskViewMode = 'all'
 ): Promise<Task[]> {
   try {
-    const session = await auth();
-    if (!session?.user) return [];
+    const user = await getSessionUser();
+    if (!user) return [];
 
-    const user = session.user as { role: string; id: string; canViewAllTasks?: boolean };
     const canSeeAll = user.canViewAllTasks === true;
     const userId = user.id;
     const showOnlyMine = viewMode === 'mine' || !canSeeAll;
@@ -231,10 +175,9 @@ export async function getTasksByGroup(
   showArchived: boolean = false
 ): Promise<Task[]> {
   try {
-    const session = await auth();
-    if (!session?.user) return [];
+    const user = await getSessionUser();
+    if (!user) return [];
 
-    const user = session.user as { role: string; id: string; canViewAllTasks?: boolean };
     const canSeeAll = user.canViewAllTasks === true || user.role === 'admin';
     const userId = user.id;
 
@@ -344,17 +287,7 @@ export async function updateTask(taskId: string, formData: FormData) {
     const user = await getCurrentUser();
     const perm = await canModifyTask(taskId, user);
     if (!perm.ok) return { success: false, error: perm.error };
-    const parsed = taskFormSchema.safeParse({
-      title: formData.get('title'),
-      description: formData.get('description') ?? '',
-      assignedUserId: formData.get('assignedUserId') || null,
-      deadline: formData.get('deadline') || '',
-      notes: formData.get('notes') ?? '',
-      frequency: formData.get('frequency') || 'one_time',
-      startDate: formData.get('startDate') || undefined,
-      priority: formData.get('priority') || 'normal',
-      groupId: formData.get('groupId') || null,
-    });
+    const parsed = parseTaskFormData(formData);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
@@ -390,23 +323,13 @@ export async function updateTask(taskId: string, formData: FormData) {
 
 export async function createTask(formData: FormData) {
   try {
-    const session = await auth();
-    if (!session?.user) return { success: false, error: 'No autenticado' };
-    const user = session.user as { id: string; role: string };
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return { success: false, error: 'No autenticado' };
+    const user = { id: sessionUser.id, role: sessionUser.role };
     if (!checkCreateRateLimit(user.id)) {
       return { success: false, error: 'Demasiadas tareas creadas en poco tiempo. Espera un momento.' };
     }
-    const parsed = taskFormSchema.safeParse({
-      title: formData.get('title'),
-      description: formData.get('description') ?? '',
-      assignedUserId: formData.get('assignedUserId') || null,
-      deadline: formData.get('deadline') || '',
-      notes: formData.get('notes') ?? '',
-      frequency: formData.get('frequency') || 'one_time',
-      startDate: formData.get('startDate') || undefined,
-      priority: formData.get('priority') || 'normal',
-      groupId: formData.get('groupId') || null,
-    });
+    const parsed = parseTaskFormData(formData);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
@@ -428,15 +351,13 @@ export async function createTask(formData: FormData) {
     // Notificar a administradores si la tarea la ha creado un usuario no admin
     if (user.role !== 'admin') {
       try {
-        const { rows: admins } = await sql`SELECT id, name FROM users WHERE role = 'admin'`;
-        const creatorName = (session.user as any)?.name || 'un usuario';
+        const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
+        const creatorName = sessionUser.name || 'un usuario';
         const safeTitle = title.length > 80 ? `${title.slice(0, 77)}...` : title;
-        for (const admin of admins) {
-          await insertNotification(
-            admin.id,
-            `Nueva tarea pendiente de asignación: "${safeTitle}" creada por ${creatorName}.`
-          );
-        }
+        await insertNotificationsForUsers(
+          admins.map((admin) => admin.id as string),
+          `Nueva tarea pendiente de asignación: "${safeTitle}" creada por ${creatorName}.`
+        );
       } catch (notifyError) {
         console.error('Error sending task approval notifications:', notifyError);
       }
@@ -492,16 +413,10 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
     // 4. If completed, notify Admins
     if (newStatus === 'completed') {
       const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
-      
-      console.log(`[Notification] Found ${admins.length} admins to notify`);
-      
-      for (const admin of admins) {
-        console.log(`[Notification] Creating alert for admin: ${admin.id}`);
-        await sql`
-          INSERT INTO notifications (user_id, message, created_at)
-          VALUES (${admin.id}, ${`¡Tarea Finalizada! "${taskTitle}" ha sido completada.`}, NOW())
-        `;
-      }
+      await insertNotificationsForUsers(
+        admins.map((admin) => admin.id as string),
+        `¡Tarea Finalizada! "${taskTitle}" ha sido completada.`
+      );
     }
 
     revalidatePath('/');

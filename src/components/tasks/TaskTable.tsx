@@ -34,80 +34,28 @@ import { toast } from "sonner";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { TaskFormDialog } from "./TaskFormDialog";
 import { TaskBoard } from "./TaskBoard";
-
-const frequencyLabels: Record<string, string> = {
-  one_time: "Una vez",
-  daily: "Diario",
-  weekly: "Semanal",
-  weekly_0: "Domingos",
-  weekly_1: "Lunes",
-  weekly_2: "Martes",
-  weekly_3: "Miércoles",
-  weekly_4: "Jueves",
-  weekly_5: "Viernes",
-  weekly_6: "Sábados",
-  monday: "Lunes", // compatibilidad
-  monthly: "Mensual",
-  date_range: "Rango de fechas",
-};
+import {
+  confirmAction,
+  filterAndSortTasks,
+  frequencyLabels,
+  getStoredSort,
+  isNearDeadline,
+  isOverdue,
+  statusLabels,
+  type DateFilterType,
+  type FilterType,
+  type SortDirection,
+  type SortKey,
+  type ViewMode,
+  SORT_STORAGE_KEY,
+  validDate,
+} from "./task-table-utils";
 
 interface TaskTableProps {
   tasks: Task[];
   users: User[];
   currentUser?: { id: string; role: string; name?: string | null; email?: string | null; image?: string | null };
   groups?: TaskGroup[];
-}
-
-const statusLabels: Record<string, string> = {
-  pending: "Pendiente",
-  in_progress: "En Progreso",
-  completed: "Finalizado",
-};
-
-type FilterType = "all" | "pending" | "completed"; 
-type DateFilterType = "all" | "today" | "week" | "overdue";
-type ViewMode = "active" | "archived";
-type SortDirection = "asc" | "desc";
-type SortKey = "title" | "assignedUserId" | "deadline" | "status" | "priority";
-
-const SORT_STORAGE_KEY = "check-task-sort";
-
-function validDate(str: string) {
-  return !!str && !Number.isNaN(new Date(str).getTime());
-}
-
-function isOverdue(deadline: string, status: Task["status"]) {
-  if (!validDate(deadline)) return false;
-  const deadlineDate = new Date(deadline);
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  return deadlineDate.getTime() < todayStart.getTime() && status !== "completed";
-}
-
-function isNearDeadline(deadline: string, status: Task["status"]) {
-  if (!validDate(deadline) || status === "completed") return false;
-  const d = new Date(deadline);
-  const now = new Date();
-  const diffTime = d.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays <= 2 && diffDays >= 0;
-}
-
-function confirmAction(message: string) {
-  if (typeof window === "undefined") return false;
-  return window.confirm(message);
-}
-
-function getStoredSort(): { key: SortKey; direction: SortDirection } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const s = localStorage.getItem(SORT_STORAGE_KEY);
-    if (!s) return null;
-    const parsed = JSON.parse(s) as { key: SortKey; direction: SortDirection };
-    if (["title", "assignedUserId", "deadline", "status", "priority"].includes(parsed?.key) && ["asc", "desc"].includes(parsed?.direction))
-      return parsed;
-  } catch (_) {}
-  return null;
 }
 
 export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableProps) {
@@ -141,61 +89,15 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
   );
 
   const sortedTasks = useMemo(() => {
-    // 1) Para usuarios no administradores, ocultamos tareas sin asignar
-    const baseTasks =
-      currentUser?.role === "admin"
-        ? tasks
-        : tasks.filter((t) => !!t.assignedUserId);
-
-    // 2) Separar activas / archivadas
-    let result =
-      viewMode === "archived"
-        ? baseTasks.filter((t) => t.isArchived)
-        : baseTasks.filter((t) => !t.isArchived);
-
-    if (viewMode !== "archived") {
-      if (filter === "pending") {
-        result = result.filter(t => t.status === "pending" || t.status === "in_progress");
-      } else if (filter === "completed") {
-        result = result.filter(t => t.status === "completed");
-      }
-      if (dateFilter !== "all") {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
-        const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000 - 1;
-        result = result.filter(t => {
-          const d = validDate(t.deadline) ? new Date(t.deadline).getTime() : 0;
-          if (dateFilter === "today") return d >= todayStart && d <= todayEnd;
-          if (dateFilter === "week") return d >= todayStart && d <= weekEnd;
-          if (dateFilter === "overdue") return d > 0 && d < todayStart && t.status !== "completed";
-          return true;
-        });
-      }
-    }
-
-    if (sortConfig) {
-      result.sort((a, b) => {
-        let valA: any = a[sortConfig.key];
-        let valB: any = b[sortConfig.key];
-
-        if (sortConfig.key === 'assignedUserId') {
-            valA = getAssignedUser(valA)?.name || "";
-            valB = getAssignedUser(valB)?.name || "";
-        }
-        if (sortConfig.key === 'deadline') {
-            valA = new Date(valA).getTime();
-            valB = new Date(valB).getTime();
-        }
-
-        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return result;
-  }, [tasks, filter, dateFilter, viewMode, sortConfig, getAssignedUser]);
+    return filterAndSortTasks(tasks, {
+      currentUserRole: currentUser?.role,
+      viewMode,
+      filter,
+      dateFilter,
+      sortConfig,
+      getAssignedUserName: (id) => getAssignedUser(id)?.name || '',
+    });
+  }, [tasks, filter, dateFilter, viewMode, sortConfig, getAssignedUser, currentUser?.role]);
 
   const isAllSelected = sortedTasks.length > 0 && selectedIds.size === sortedTasks.length;
   const isSomeSelected = selectedIds.size > 0 && selectedIds.size < sortedTasks.length;

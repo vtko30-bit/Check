@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function GroupsPage() {
   const session = await auth();
-  const currentUser = session?.user as { role?: string } | null;
+  const currentUser = session?.user;
   const groups = await getTaskGroups();
   const users = await getUsers();
 
@@ -22,7 +22,7 @@ export default async function GroupsPage() {
         </h1>
       </header>
 
-      <TaskGroupsManager groups={groups} canManage={!!canManage} users={users} currentUser={session?.user as any} />
+      <TaskGroupsManager groups={groups} canManage={!!canManage} users={users} currentUser={currentUser} />
     </div>
   );
 }

@@ -9,7 +9,7 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  const user = session.user as { role?: string };
+  const user = session.user;
   if (user.role !== 'admin') {
     redirect('/');
   }

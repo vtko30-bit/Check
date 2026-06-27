@@ -11,15 +11,8 @@ import {
   getSessionUser,
   isAdminOrEditor,
 } from '@/lib/auth-helpers';
+import { createUserSchema } from '@/lib/user-validation';
 import { toPublicUserList } from '@/lib/users-queries';
-
-const createUserSchema = z.object({
-  name: z.string().min(1, 'El nombre es obligatorio').max(255),
-  email: z.string().email('Email inválido'),
-  role: z.enum(['admin', 'editor', 'viewer']),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
-  canViewAllTasks: z.union([z.boolean(), z.literal('on'), z.string()]).optional(),
-});
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -61,9 +54,8 @@ export async function getUsers(): Promise<User[]> {
 }
 
 export async function createUser(formData: FormData) {
-  const session = await auth();
-  const user = session?.user as { role?: string } | undefined;
-  if (user?.role !== 'admin' && user?.role !== 'editor') {
+  const currentUser = await getSessionUser();
+  if (!isAdminOrEditor(currentUser)) {
     return { success: false, error: 'No autorizado. Solo Super Admin y Administradores pueden crear usuarios.' };
   }
 
@@ -79,14 +71,14 @@ export async function createUser(formData: FormData) {
   }
   const { name, email, role, password } = parsed.data;
 
-  if (!canAssignAdminRole(user) && role === 'admin') {
+  if (!canAssignAdminRole(currentUser) && role === 'admin') {
     return { success: false, error: 'Solo un administrador puede asignar el rol de administrador.' };
   }
 
   const canViewAllRaw =
     formData.get('canViewAllTasks') === 'on' || formData.get('canViewAllTasks') === 'true';
   const canViewAll =
-    role === 'admin' || (canAssignAdminRole(user) && canViewAllRaw);
+    role === 'admin' || (canAssignAdminRole(currentUser) && canViewAllRaw);
   const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
 
   const hashedPassword = await bcrypt.hash(password, 10);

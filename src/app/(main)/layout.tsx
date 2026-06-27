@@ -9,8 +9,10 @@ import { redirect } from "next/navigation"; // Para proteger rutas
 export default async function MainAppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const isLoggedIn = !!session?.user;
-  const companyLogo = await getBranding();
-  const groupedTasksCount = await getGroupedTasksCount();
+  const [companyLogo, groupedTasksCount] = await Promise.all([
+    getBranding(),
+    getGroupedTasksCount(),
+  ]);
 
   if (!isLoggedIn) {
     redirect("/login");
@@ -22,7 +24,7 @@ export default async function MainAppLayout({ children }: { children: React.Reac
       <MobileNav user={session.user} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
       
       <div className="hidden md:flex">
-        <Sidebar user={session.user as any} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
+        <Sidebar user={session.user} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
       </div>
       
       <main className="flex-1 flex flex-col overflow-auto w-full bg-sky-100 dark:bg-sky-950/40">

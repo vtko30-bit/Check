@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { Notification } from '@/types';
 import { auth } from '@/auth';
-import { isAdmin } from '@/lib/auth-helpers';
+import { getSessionUser, isAdmin } from '@/lib/auth-helpers';
 import { insertNotification } from '@/lib/notifications-db';
 
 function mapNotification(row: QueryResultRow): Notification {
@@ -100,10 +100,9 @@ export async function markAllAsRead(userId: string) {
 }
 
 export async function createNotification(userId: string, message: string) {
-  const currentUser = await auth();
-  const user = currentUser?.user as { role?: string } | undefined;
+  const user = await getSessionUser();
 
-  if (!user || !isAdmin(user)) {
+  if (!isAdmin(user)) {
     return { success: false, error: 'No autorizado. Solo administradores pueden crear notificaciones.' };
   }
 
@@ -118,10 +117,9 @@ export async function createNotification(userId: string, message: string) {
 
 export async function sendTestNotification() {
   try {
-    const session = await auth();
-    const currentUser = session?.user as { role?: string } | undefined;
+    const user = await getSessionUser();
 
-    if (currentUser?.role !== 'admin') {
+    if (!isAdmin(user)) {
       return { success: false, error: 'No autorizado. Solo administradores pueden enviar notificaciones de prueba.' };
     }
 

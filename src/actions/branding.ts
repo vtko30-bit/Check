@@ -2,8 +2,9 @@
 
 import { sql } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/auth';
+import { getSessionUser, isAdmin } from '@/lib/auth-helpers';
 import { validateLogoBase64 } from '@/lib/branding-validation';
+import { uploadCompanyLogo } from '@/lib/logo-storage';
 
 export async function getBranding() {
   if (!process.env.POSTGRES_URL) return null;
@@ -23,9 +24,8 @@ export async function getBranding() {
 }
 
 async function assertAdminBrandingAccess() {
-  const session = await auth();
-  const user = session?.user as { role?: string } | undefined;
-  if (user?.role !== 'admin') {
+  const user = await getSessionUser();
+  if (!isAdmin(user)) {
     return { success: false as const, error: 'No autorizado. Solo administradores pueden cambiar el logo.' };
   }
   if (!process.env.POSTGRES_URL) {
@@ -61,19 +61,20 @@ export async function updateBranding(logoBase64: string) {
   }
 
   try {
-    // Check if key exists
+    const logoValue = await uploadCompanyLogo(logoBase64);
+
     const exists = await sql`SELECT id FROM settings WHERE key = 'company_logo'`;
     
     if (exists.rows?.length > 0) {
       await sql`
         UPDATE settings 
-        SET value = ${logoBase64}, updated_at = NOW() 
+        SET value = ${logoValue}, updated_at = NOW() 
         WHERE key = 'company_logo'
       `;
     } else {
       await sql`
         INSERT INTO settings (key, value) 
-        VALUES ('company_logo', ${logoBase64})
+        VALUES ('company_logo', ${logoValue})
       `;
     }
     

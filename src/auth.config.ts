@@ -8,16 +8,16 @@ export const authConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.canViewAllTasks = (user as any).can_view_all_tasks === true;
+        token.role = user.role;
+        token.canViewAllTasks = user.can_view_all_tasks === true;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).canViewAllTasks = token.canViewAllTasks === true;
+        session.user.id = (token.id as string) ?? token.sub ?? '';
+        session.user.role = (token.role as string) ?? 'viewer';
+        session.user.canViewAllTasks = token.canViewAllTasks === true;
       }
       return session;
     },
