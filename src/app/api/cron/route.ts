@@ -15,9 +15,20 @@ export async function GET(request: Request) {
     const tasks = await fetchAllTasksForReports();
     const users = await fetchAllUsers();
 
-    const previewUrl = await sendDailyReport('admin@example.com', tasks, users);
+    const reportEmail =
+      process.env.REPORT_EMAIL?.trim() ||
+      users.find((u) => u.role === 'admin' && u.email)?.email;
 
-    return NextResponse.json({ success: true, previewUrl });
+    if (!reportEmail) {
+      return NextResponse.json({
+        success: true,
+        warning: 'Sin REPORT_EMAIL ni admin con email; reporte no enviado.',
+      });
+    }
+
+    const previewUrl = await sendDailyReport(reportEmail, tasks, users);
+
+    return NextResponse.json({ success: true, previewUrl, sentTo: reportEmail });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ success: false, error: 'Failed to send email' }, { status: 500 });

@@ -152,7 +152,7 @@ Antes de hacer `git push` que despliegue a Vercel:
 
 **Causa:** El endpoint requiere `Authorization: Bearer <CRON_SECRET>`.
 
-**Solución:** En Vercel Cron, configura `CRON_SECRET` en las variables de entorno. En local, puedes probar con:
+**Solución:** En Vercel → Settings → Environment Variables, añade `CRON_SECRET` (sin saltos de línea). Vercel lo envía automáticamente al cron definido en `vercel.json`. En local:
 ```bash
 curl -H "Authorization: Bearer tu-CRON_SECRET" http://localhost:3000/api/cron
 ```
