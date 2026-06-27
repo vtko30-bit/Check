@@ -60,12 +60,12 @@ export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: {
         </div>
         
 
-        <nav className="space-y-1">
+        <nav className="space-y-1" aria-label="Navegación principal">
           {links.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
             return (
-              <Link key={link.href} href={link.href}>
+              <Link key={link.href} href={link.href} aria-current={isActive ? 'page' : undefined}>
                 <span className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium",
                   isActive ? "bg-white text-primary shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:bg-white/50 hover:text-slate-900"
@@ -86,6 +86,8 @@ export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: {
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-red-600 hover:bg-red-50 w-full"
+          type="button"
+          aria-label="Cerrar sesión"
         >
           <LogOut className="w-4 h-4" />
           Cerrar Sesión

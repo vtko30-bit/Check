@@ -7,12 +7,17 @@ import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendPasswordResetEmail } from '@/lib/email';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
 
 export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string;
   if (!email || !z.string().email().safeParse(email).success) {
     return { success: false, error: 'Introduce un email válido.' };
+  }
+
+  if (!checkRateLimit(`pwd-reset:${email.toLowerCase()}`, 3, 15 * 60_000)) {
+    return { success: false, error: 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.' };
   }
 
   try {

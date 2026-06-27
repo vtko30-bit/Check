@@ -20,14 +20,19 @@ export default async function MainAppLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      {/* AQUÍ SÍ ponemos las barras */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
+      >
+        Saltar al contenido
+      </a>
       <MobileNav user={session.user} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
       
       <div className="hidden md:flex">
         <Sidebar user={session.user} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
       </div>
       
-      <main className="flex-1 flex flex-col overflow-auto w-full bg-sky-100 dark:bg-sky-950/40">
+      <main id="main-content" className="flex-1 flex flex-col overflow-auto w-full bg-sky-100 dark:bg-sky-950/40">
         <OfflineBanner />
         <div className="flex-1 p-4 md:p-8">
           {children}

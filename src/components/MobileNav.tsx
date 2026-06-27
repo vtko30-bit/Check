@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
@@ -26,6 +26,15 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
     ...(user.role === 'admin' ? [{ href: '/settings', label: 'Configuración', icon: Settings }] : []),
   ];
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   return (
     <div className="md:hidden border-b bg-white p-4 flex items-center justify-between sticky top-0 z-40">
       
@@ -43,15 +52,26 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
           highlightApprovals={user.role === 'admin'}
         />
         <ShareButton compact />
-        <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setOpen(true)}
+          aria-label="Abrir menú de navegación"
+          aria-expanded={open}
+          aria-controls="mobile-nav-drawer"
+        >
           <Menu className="w-5 h-5" />
         </Button>
       </div>
 
       {/* Drawer Overlay */}
       {open && (
-        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setOpen(false)} aria-hidden="true">
           <div 
+            id="mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú de navegación"
             className="fixed inset-y-0 left-0 w-3/4 max-w-xs bg-white p-4 shadow-xl transition-transform animate-in slide-in-from-left flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -65,7 +85,12 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
                 <span className="text-slate-800">Check</span>
               </div>
 
-              <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false)}
+                aria-label="Cerrar menú"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
@@ -88,7 +113,7 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
               </div>
             </div>
             
-            <nav className="space-y-1">
+            <nav className="space-y-1" aria-label="Navegación principal">
               {links.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
@@ -97,6 +122,7 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
                     key={link.href} 
                     href={link.href}
                     onClick={() => setOpen(false)}
+                    aria-current={isActive ? 'page' : undefined}
                   >
                     <span className={cn(
                       "flex items-center gap-3 px-3 py-3 rounded-md transition-colors text-sm font-medium mb-1",
@@ -117,6 +143,8 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-sm font-bold text-red-600 hover:bg-red-50 w-full"
+                  type="button"
+                  aria-label="Cerrar sesión"
                 >
                   <LogOut className="w-5 h-5" />
                   Cerrar Sesión

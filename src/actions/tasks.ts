@@ -8,19 +8,13 @@ import { getSessionUser } from '@/lib/auth-helpers';
 import { mapTask } from '@/lib/task-mapper';
 import { getModifyTaskPermission, type TaskActor } from '@/lib/task-permissions';
 import { parseTaskFormData } from '@/lib/task-validation';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CREATES = 30;
-const createTaskTimestamps: { [userId: string]: number[] } = {};
 
 function checkCreateRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const timestamps = createTaskTimestamps[userId] ?? [];
-  const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-  if (valid.length >= RATE_LIMIT_MAX_CREATES) return false;
-  valid.push(now);
-  createTaskTimestamps[userId] = valid;
-  return true;
+  return checkRateLimit(`create-task:${userId}`, RATE_LIMIT_MAX_CREATES, RATE_LIMIT_WINDOW_MS);
 }
 
 async function getCurrentUser(): Promise<TaskActor | null> {
