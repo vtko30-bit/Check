@@ -9,7 +9,6 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
         '/manifest.webmanifest',
-        '/favicon.ico',
         '/check-logo.png',
       ]).catch(() => {}).then(() => self.skipWaiting());
     })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { isBearerAuthorized } from '@/lib/api-auth';
+import { applyPendingMigrations } from '@/lib/migrations';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,10 +9,29 @@ export const dynamic = 'force-dynamic';
  * GET /api/db-check
  * Verifica la conexión a la base de datos y el estado de las tablas.
  * Requiere Authorization: Bearer <DB_CHECK_SECRET>.
+ * Query opcional: ?migrate=1 para aplicar migraciones SQL pendientes.
  */
 export async function GET(request: Request) {
   if (!isBearerAuthorized(request, 'DB_CHECK_SECRET')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const shouldMigrate = searchParams.get('migrate') === '1';
+
+  let appliedMigrations: string[] = [];
+  if (shouldMigrate) {
+    try {
+      appliedMigrations = await applyPendingMigrations();
+    } catch (err) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Error aplicando migraciones',
+        },
+        { status: 500 }
+      );
+    }
   }
 
   const checks: Record<string, { ok: boolean; detail?: string; error?: string }> = {};
@@ -82,6 +102,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: allOk,
     checks,
+    appliedMigrations: appliedMigrations.length > 0 ? appliedMigrations : undefined,
     accion: !checks.usuario_admin?.ok ? 'Visita /api/seed para crear tablas y usuario demo' : undefined,
   });
 }

@@ -42,8 +42,11 @@ export function NotificationCenter({
     };
     init();
     
-    // Create audio once
-    audioRef.current = new Audio('/notification.mp3');
+    const audio = new Audio('/notification.mp3');
+    audio.addEventListener('error', () => {
+      audioRef.current = null;
+    });
+    audioRef.current = audio;
     
     // Poll for new notifications every 10 seconds
     const interval = setInterval(fetchNotifications, 10000);

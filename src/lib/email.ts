@@ -1,37 +1,72 @@
 import nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { Task, User } from '@/types';
 
-export async function sendDailyReport(to: string, tasks: Task[], users: User[]) {
-  let transporter: nodemailer.Transporter;
+type MailTransporter = {
+  transporter: nodemailer.Transporter;
+  isTestAccount: boolean;
+};
 
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  } else {
-    const account = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
+function getFromAddress(): string {
+  const from = process.env.SMTP_FROM?.trim();
+  if (from) return from;
+  const user = process.env.SMTP_USER?.trim();
+  if (user) return `"Check" <${user}>`;
+  return '"Check" <noreply@check.local>';
+}
+
+function getSmtpOptions(): SMTPTransport.Options | null {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) return null;
+
+  return {
+    host,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass },
+  };
+}
+
+async function createMailTransporter(): Promise<MailTransporter> {
+  const smtp = getSmtpOptions();
+  if (smtp) {
+    return {
+      transporter: nodemailer.createTransport(smtp),
+      isTestAccount: false,
+    };
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'SMTP no configurado en producción. Añade SMTP_HOST, SMTP_USER y SMTP_PASS en Vercel.'
+    );
+  }
+
+  const account = await nodemailer.createTestAccount();
+  return {
+    transporter: nodemailer.createTransport({
       host: account.smtp.host,
       port: account.smtp.port,
       secure: account.smtp.secure,
       auth: { user: account.user, pass: account.pass },
-    });
-  }
+    }),
+    isTestAccount: true,
+  };
+}
 
-  const pendingTasks = tasks.filter(t => t.status !== 'completed');
-  const criticalTasks = pendingTasks.filter(t => {
-      // Logic for critical dates (same as TaskTable)
-      const d = new Date(t.deadline);
-      const now = new Date();
-      const diffTime = d.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-      return diffDays <= 2 && diffDays >= 0;
+export async function sendDailyReport(to: string, tasks: Task[], users: User[]) {
+  const { transporter, isTestAccount } = await createMailTransporter();
+
+  const pendingTasks = tasks.filter((t) => t.status !== 'completed');
+  const criticalTasks = pendingTasks.filter((t) => {
+    const d = new Date(t.deadline);
+    const now = new Date();
+    const diffTime = d.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 2 && diffDays >= 0;
   });
 
   const html = `
@@ -55,16 +90,18 @@ export async function sendDailyReport(to: string, tasks: Task[], users: User[]) 
             <th style="padding: 10px;">Responsable</th>
             <th style="padding: 10px;">Vencimiento</th>
           </tr>
-          ${criticalTasks.map(t => {
-            const user = users.find(u => u.id === t.assignedUserId);
-            return `
+          ${criticalTasks
+            .map((t) => {
+              const user = users.find((u) => u.id === t.assignedUserId);
+              return `
               <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px;">${t.title}</td>
                 <td style="padding: 10px;">${user?.name || 'Sin asignar'}</td>
                 <td style="padding: 10px; color: red;">${new Date(t.deadline).toLocaleDateString()}</td>
               </tr>
             `;
-          }).join('')}
+            })
+            .join('')}
         </table>
       `}
       
@@ -75,41 +112,25 @@ export async function sendDailyReport(to: string, tasks: Task[], users: User[]) 
   `;
 
   const info = await transporter.sendMail({
-    from: '"Check Bot" <noreply@check.local>',
+    from: getFromAddress(),
     to,
-    subject: `📋 Reporte Diario - ${new Date().toLocaleDateString()}`,
+    subject: `📋 Reporte Diario - ${new Date().toLocaleDateString('es-CL')}`,
     html,
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  if (isTestAccount) {
     const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) console.log("Preview URL:", previewUrl);
+    if (previewUrl && process.env.NODE_ENV === 'development') {
+      console.log('Preview URL:', previewUrl);
+    }
+    return previewUrl || null;
   }
-  return nodemailer.getTestMessageUrl(info);
+
+  return null;
 }
 
 export async function sendPasswordResetEmail(to: string, resetLink: string, userName?: string) {
-  let transporter: nodemailer.Transporter;
-
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  } else {
-    const account = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: account.smtp.host,
-      port: account.smtp.port,
-      secure: account.smtp.secure,
-      auth: { user: account.user, pass: account.pass },
-    });
-  }
+  const { transporter, isTestAccount } = await createMailTransporter();
 
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -129,14 +150,14 @@ export async function sendPasswordResetEmail(to: string, resetLink: string, user
   `;
 
   const info = await transporter.sendMail({
-    from: '"Check" <noreply@check.local>',
+    from: getFromAddress(),
     to,
     subject: 'Recuperar contraseña - Check',
     html,
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  if (isTestAccount && process.env.NODE_ENV === 'development') {
     const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) console.log("Password reset preview:", previewUrl);
+    if (previewUrl) console.log('Password reset preview:', previewUrl);
   }
 }

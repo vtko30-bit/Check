@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, previewUrl, sentTo: reportEmail });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ success: false, error: 'Failed to send email' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to send email';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
