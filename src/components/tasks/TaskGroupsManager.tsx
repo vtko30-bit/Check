@@ -403,11 +403,10 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
             }
           }}
           onTaskCreated={(groupId) => {
-            const wantsMore = window.confirm('¿Desea agregar más tareas a la lista?');
             setShowTaskDialog(false);
             setCreatedGroupId(null);
             setCreatedTaskDefaults(null);
-            if (wantsMore && groupId) {
+            if (groupId) {
               router.push(`/groups/${groupId}`);
             }
           }}

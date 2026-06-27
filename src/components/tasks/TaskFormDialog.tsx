@@ -56,6 +56,8 @@ export function TaskFormDialog({
   );
   const [description, setDescription] = useState(task?.description ?? '');
   const [title, setTitle] = useState(task?.title ?? '');
+  const [formResetKey, setFormResetKey] = useState(0);
+  const [tasksAddedCount, setTasksAddedCount] = useState(0);
 
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -72,26 +74,32 @@ export function TaskFormDialog({
           ? 'weekly_1'
           : (task?.frequency || defaultFrequency || 'one_time')
       );
+      setTasksAddedCount(0);
+      setFormResetKey(0);
     }
   }, [open, task?.title, task?.description, task?.frequency, defaultFrequency]);
   const isEdit = !!task;
+  const canAddAnother = !!groupId && !isEdit;
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  function resetFormForAnother() {
+    setTitle('');
+    setDescription('');
+    setError(null);
+    setFormResetKey((k) => k + 1);
+  }
+
+  async function saveTask(form: HTMLFormElement, options: { closeOnSuccess: boolean }) {
+    const formData = new FormData(form);
     setIsLoading(true);
 
-    // Si se abre desde un grupo, forzamos el groupId para que la tarea viva dentro de esa "carpeta"
     if (groupId) {
       formData.set('groupId', groupId);
-    } else if (task && (task as any).groupId) {
-      // Mantener el grupo actual al editar, aunque el formulario no lo exponga
-      formData.set('groupId', (task as any).groupId as string);
+    } else if (task?.groupId) {
+      formData.set('groupId', task.groupId);
     }
 
-    // Esta vista simplificada no gestiona subtareas; enviamos una lista vacía
     formData.set('subtasks', JSON.stringify([]));
-    
+
     try {
       let result: { success?: boolean; error?: string } | void;
       if (isEdit && task) {
@@ -104,14 +112,56 @@ export function TaskFormDialog({
         toast.error(result.error);
         return;
       }
-      setOpen(false);
-      toast.success(isEdit ? 'Tarea actualizada' : 'Tarea creada');
-      if (!isEdit && onTaskCreated) {
-        onTaskCreated(groupId);
+
+      if (isEdit) {
+        setOpen(false);
+        toast.success('Tarea actualizada');
+        return;
+      }
+
+      if (options.closeOnSuccess) {
+        setOpen(false);
+        toast.success(
+          tasksAddedCount > 0
+            ? `${tasksAddedCount + 1} tareas añadidas a la lista`
+            : 'Tarea creada'
+        );
+        onTaskCreated?.(groupId);
+      } else {
+        setTasksAddedCount((c) => c + 1);
+        resetFormForAnother();
+        toast.success('Tarea añadida. Puedes agregar otra.');
+        const titleInput = form.querySelector<HTMLInputElement>('#title');
+        titleInput?.focus();
       }
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (canAddAnother && !title.trim() && tasksAddedCount > 0) {
+      setOpen(false);
+      toast.success(
+        `${tasksAddedCount} tarea${tasksAddedCount !== 1 ? 's' : ''} añadida${tasksAddedCount !== 1 ? 's' : ''} a la lista`
+      );
+      onTaskCreated?.(groupId);
+      return;
+    }
+    await saveTask(form, { closeOnSuccess: true });
+  }
+
+  async function handleAddAnother(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    const form = e.currentTarget.closest('form');
+    if (!form) return;
+    if (!title.trim()) {
+      setError('El título es obligatorio.');
+      return;
+    }
+    await saveTask(form, { closeOnSuccess: false });
   }
 
   return (
@@ -138,7 +188,7 @@ export function TaskFormDialog({
           </DialogHeader>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-6" key={formResetKey}>
           {error && (
             <p className="mb-4 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
               {error}
@@ -344,15 +394,41 @@ export function TaskFormDialog({
           </div>
 
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100/80 dark:border-slate-800 mt-6 -mx-6 px-6 bg-slate-50/40 dark:bg-slate-900/60">
+            {canAddAnother && tasksAddedCount > 0 && (
+              <p className="mr-auto text-xs text-slate-500 self-center">
+                {tasksAddedCount} tarea{tasksAddedCount !== 1 ? 's' : ''} añadida{tasksAddedCount !== 1 ? 's' : ''}
+              </p>
+            )}
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading} className="rounded-lg">
               Cancelar
             </Button>
+            {canAddAnother && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isLoading}
+                onClick={handleAddAnother}
+                className="gap-2 rounded-lg"
+                title="Guardar esta tarea y añadir otra a la lista"
+              >
+                <Plus className="w-4 h-4" />
+                Añadir otra
+              </Button>
+            )}
             <Button
               type="submit"
               disabled={isLoading}
               className="px-8 rounded-lg shadow-lg shadow-primary/25 bg-primary hover:bg-primary/90"
             >
-              {isLoading ? (isEdit ? 'Guardando...' : 'Creando...') : (isEdit ? 'Guardar Cambios' : 'Crear Tarea')}
+              {isLoading
+                ? isEdit
+                  ? 'Guardando...'
+                  : 'Creando...'
+                : isEdit
+                  ? 'Guardar Cambios'
+                  : canAddAnother
+                    ? 'Listo'
+                    : 'Crear Tarea'}
             </Button>
           </div>
         </form>
