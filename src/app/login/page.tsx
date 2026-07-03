@@ -1,8 +1,15 @@
 import { LoginForm } from '@/components/ui/login-form';
 import { getBranding } from '@/actions/branding';
- 
-export default async function LoginPage() {
+import { isGoogleAuthConfigured } from '@/lib/auth-google';
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const companyLogo = await getBranding();
+  const { error } = await searchParams;
+
   return (
     <main className="flex items-center justify-center min-h-screen w-full bg-primary/25 px-4 py-8">
       <div className="relative w-full max-w-[380px] flex flex-col space-y-4">
@@ -23,7 +30,10 @@ export default async function LoginPage() {
 
         {/* Recuadro de credenciales - ancho contenido */}
         <div className="bg-primary/20 rounded-2xl border-2 border-primary/40 shadow-lg overflow-hidden">
-          <LoginForm />
+          <LoginForm
+            googleAuthEnabled={isGoogleAuthConfigured()}
+            authError={error ?? null}
+          />
         </div>
         
         <div className="text-center text-[10px] text-slate-400 font-medium">
