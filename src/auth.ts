@@ -12,6 +12,7 @@ import {
   findOrCreateGoogleUser,
   findUserByEmail,
   isGoogleAuthConfigured,
+  isPostgresConfigured,
 } from '@/lib/auth-google';
 
 async function getUser(email: string) {
@@ -76,6 +77,11 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
       if (account?.provider !== 'google') return true;
 
       try {
+        if (!isPostgresConfigured()) {
+          console.error('Google signIn: POSTGRES_URL no configurada');
+          return '/login?error=DbError';
+        }
+
         const email = user.email?.trim().toLowerCase();
         if (!email) return '/login?error=GoogleSignIn';
 

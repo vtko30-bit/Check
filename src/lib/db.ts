@@ -16,7 +16,11 @@ let client: ReturnType<typeof createClient> | null = null;
 let clientConnectPromise: Promise<void> | null = null;
 
 function getConnectionString(): string {
-  const cs = process.env.POSTGRES_URL;
+  const cs =
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+    process.env.DATABASE_URL?.trim();
+
   if (!cs) throw new Error('POSTGRES_URL is not configured');
   try {
     const url = new URL(cs);
