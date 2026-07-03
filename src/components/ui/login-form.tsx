@@ -7,8 +7,11 @@ import { signIn } from 'next-auth/react';
 
 const AUTH_ERRORS: Record<string, string> = {
   AccessDenied:
-    'No tienes permiso para iniciar sesión. Si tu cuenta está desactivada, contacta al administrador.',
-  InactiveAccount: 'Tu cuenta está desactivada. Contacta al administrador.',
+    'No tienes permiso para iniciar sesión.',
+  InactiveAccount:
+    'Tu cuenta está desactivada. Pide a un administrador que la reactive en Usuarios.',
+  DbError:
+    'No se pudo conectar con la base de datos al iniciar sesión. Revisa POSTGRES_URL en Vercel o intenta más tarde.',
   GoogleSignIn: 'No se pudo obtener el correo de Google. Intenta de nuevo.',
   OAuthSignin: 'Error al conectar con Google. Revisa la configuración.',
   OAuthCallback: 'Error en la respuesta de Google. Intenta de nuevo.',

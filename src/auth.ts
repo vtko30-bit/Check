@@ -8,6 +8,7 @@ import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import {
+  applyDbUserToAuthUser,
   findOrCreateGoogleUser,
   findUserByEmail,
   isGoogleAuthConfigured,
@@ -76,29 +77,35 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
       try {
         const email = user.email?.trim().toLowerCase();
-        if (!email) return false;
+        if (!email) return '/login?error=GoogleSignIn';
 
-        const dbUser = await findOrCreateGoogleUser(email, user.name, user.image);
-        if (!dbUser) return false;
+        const result = await findOrCreateGoogleUser(email, user.name, user.image);
+        if (!result.ok) {
+          if (result.reason === 'inactive') {
+            return '/login?error=InactiveAccount';
+          }
+          return '/login?error=DbError';
+        }
 
+        applyDbUserToAuthUser(user, result.user);
         return true;
       } catch (error) {
         console.error('Google signIn error:', error);
-        return false;
+        return '/login?error=DbError';
       }
     },
     async jwt({ token, user, account }) {
-      if (account?.provider === 'google' && user?.email) {
+      if (user?.id && user?.role) {
+        token.id = user.id;
+        token.role = user.role;
+        token.canViewAllTasks = user.can_view_all_tasks === true;
+      } else if (account?.provider === 'google' && user?.email) {
         const dbUser = await findUserByEmail(user.email.trim().toLowerCase());
         if (dbUser) {
           token.id = dbUser.id;
           token.role = dbUser.role;
           token.canViewAllTasks = dbUser.can_view_all_tasks;
         }
-      } else if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.canViewAllTasks = user.can_view_all_tasks === true;
       }
       return token;
     },

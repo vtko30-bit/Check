@@ -1,2 +1,5 @@
-import { handlers } from "@/auth" // Referring to the auth.ts exports
-export const { GET, POST } = handlers
+import { handlers } from '@/auth';
+
+export const runtime = 'nodejs';
+
+export const { GET, POST } = handlers;
