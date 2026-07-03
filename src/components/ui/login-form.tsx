@@ -7,12 +7,15 @@ import { signIn } from 'next-auth/react';
 
 const AUTH_ERRORS: Record<string, string> = {
   AccessDenied:
-    'Tu correo de Google no está registrado en Check. Pide a un administrador que cree tu usuario con ese email.',
+    'No tienes permiso para iniciar sesión. Si tu cuenta está desactivada, contacta al administrador.',
   InactiveAccount: 'Tu cuenta está desactivada. Contacta al administrador.',
   GoogleSignIn: 'No se pudo obtener el correo de Google. Intenta de nuevo.',
   OAuthSignin: 'Error al conectar con Google. Revisa la configuración.',
   OAuthCallback: 'Error en la respuesta de Google. Intenta de nuevo.',
+  OAuthAccountNotLinked:
+    'Este correo ya está registrado con contraseña. Inicia sesión con email y contraseña.',
   Configuration: 'Inicio con Google no configurado en el servidor.',
+  Default: 'No se pudo iniciar sesión. Intenta de nuevo.',
 };
 
 function GoogleIcon() {
@@ -47,7 +50,7 @@ export function LoginForm({
 }) {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(
-    authError ? AUTH_ERRORS[authError] ?? 'No se pudo iniciar sesión.' : null
+    authError ? AUTH_ERRORS[authError] ?? AUTH_ERRORS.Default : null
   );
   const [pending, setPending] = useState(false);
   const [googlePending, setGooglePending] = useState(false);

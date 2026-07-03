@@ -8,9 +8,9 @@ import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import {
+  findOrCreateGoogleUser,
   findUserByEmail,
   isGoogleAuthConfigured,
-  syncGoogleProfile,
 } from '@/lib/auth-google';
 
 async function getUser(email: string) {
@@ -66,6 +66,7 @@ if (isGoogleAuthConfigured()) {
 }
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
+  trustHost: true,
   ...authConfig,
   providers,
   callbacks: {
@@ -73,19 +74,18 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider !== 'google') return true;
 
-      const email = user.email?.trim().toLowerCase();
-      if (!email) return '/login?error=GoogleSignIn';
+      try {
+        const email = user.email?.trim().toLowerCase();
+        if (!email) return false;
 
-      const dbUser = await findUserByEmail(email);
-      if (!dbUser) {
-        return '/login?error=AccessDenied';
-      }
-      if (!dbUser.is_active) {
-        return '/login?error=InactiveAccount';
-      }
+        const dbUser = await findOrCreateGoogleUser(email, user.name, user.image);
+        if (!dbUser) return false;
 
-      await syncGoogleProfile(dbUser.id, user.name, user.image);
-      return true;
+        return true;
+      } catch (error) {
+        console.error('Google signIn error:', error);
+        return false;
+      }
     },
     async jwt({ token, user, account }) {
       if (account?.provider === 'google' && user?.email) {
