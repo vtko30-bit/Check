@@ -14,6 +14,18 @@ import {
 import { createUserSchema } from '@/lib/user-validation';
 import { toPublicUserList } from '@/lib/users-queries';
 
+let ensuredUserColumns = false;
+
+async function ensureUserColumns() {
+  if (ensuredUserColumns) return;
+
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255)`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_all_tasks BOOLEAN DEFAULT FALSE`;
+
+  ensuredUserColumns = true;
+}
+
 function mapUser(row: Record<string, unknown>): User {
   return {
     id: row.id as string,
@@ -33,6 +45,7 @@ export async function getUsers(): Promise<User[]> {
   if (!currentUser?.id) return [];
 
   try {
+    await ensureUserColumns();
     const timeout = new Promise<{ rows: unknown[] }>((resolve) =>
       setTimeout(() => resolve({ rows: [] }), 20000)
     );
@@ -84,6 +97,7 @@ export async function createUser(formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
+    await ensureUserColumns();
     const existing = await sql`
       SELECT 1 FROM users WHERE email = ${email} LIMIT 1
     `;
@@ -142,6 +156,7 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'editor'
   }
 
   try {
+    await ensureUserColumns();
     // Evitar dejar el sistema sin administradores
     if (newRole !== 'admin') {
       const { rows } = await sql`SELECT id FROM users WHERE role = 'admin'`;
@@ -196,6 +211,7 @@ export async function updateUser(
   const passwordToSet = canSetPassword && newPassword && newPassword.trim().length >= 6 ? newPassword.trim() : null;
 
   try {
+    await ensureUserColumns();
     const existing = await sql`SELECT id FROM users WHERE email = ${email} AND id != ${userId}`;
     if (existing.rowCount && existing.rowCount > 0) {
       return { success: false, error: 'Ya existe otro usuario con ese correo.' };
@@ -225,6 +241,7 @@ export async function setUserActive(userId: string, active: boolean) {
     return { success: false, error: 'No puedes desactivarte a ti mismo.' };
   }
   try {
+    await ensureUserColumns();
     await sql`UPDATE users SET is_active = ${active} WHERE id = ${userId}`;
     revalidatePath('/users');
     revalidatePath('/');
