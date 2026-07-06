@@ -121,6 +121,132 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
 
   return (
     <div className="space-y-6">
+      {canManage && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
+            <Plus className="w-4 h-4 text-primary" />
+            Nueva Lista
+          </h3>
+          <form onSubmit={handleCreate} className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600" htmlFor="group-name">
+                Nombre
+              </label>
+              <input
+                id="group-name"
+                name="name"
+                required
+                maxLength={255}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                placeholder="Ej: Auditorías mensuales, Inventario, Turno Noche..."
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-supervisor">
+                <UserIcon className="w-3 h-3" />
+                Asignar a
+              </label>
+              <select
+                id="group-supervisor"
+                name="supervisorUserId"
+                value={supervisorUserId}
+                onChange={(e) => setSupervisorUserId(e.target.value)}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-type">
+                  <RefreshCw className="w-3 h-3" />
+                  Frecuencia
+                </label>
+                <select
+                  id="group-type"
+                  name="listType"
+                  value={listType}
+                  onChange={(e) => {
+                    const nextType = e.target.value as 'one_time' | 'permanent';
+                    setListType(nextType);
+                    if (nextType === 'permanent') setDueDate('');
+                  }}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                >
+                  <option value="one_time">Una vez</option>
+                  <option value="permanent">Frecuente / permanente</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
+                  <CalendarIcon className="w-3 h-3" />
+                  Vencimiento
+                </label>
+                <input
+                  id="group-due-date"
+                  name="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  required={listType === 'one_time'}
+                  disabled={listType === 'permanent'}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600" htmlFor="group-description">
+                Descripción (opcional)
+              </label>
+              <textarea
+                id="group-description"
+                name="description"
+                rows={2}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                placeholder="Breve descripción del tipo de tareas que vivirán en este grupo."
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-slate-600">
+                Color del grupo
+              </span>
+              <div className="flex items-center gap-2">
+                {COLOR_OPTIONS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setSelectedColor(color)}
+                    className={cn(
+                      'w-6 h-6 rounded-full border-2 transition-all',
+                      selectedColor === color
+                        ? 'ring-2 ring-primary scale-110'
+                        : 'opacity-80 hover:opacity-100'
+                    )}
+                    style={{ backgroundColor: color, borderColor: color }}
+                    aria-label={`Elegir color ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <button
+              type="submit"
+              disabled={pending}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90 disabled:bg-slate-300 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              {pending ? 'Creando...' : 'Crear Lista'}
+            </button>
+          </form>
+        </section>
+      )}
+
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
           <FolderKanban className="w-4 h-4 text-primary" />
@@ -259,132 +385,6 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
           </div>
         )}
       </section>
-
-      {canManage && (
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
-            <Plus className="w-4 h-4 text-primary" />
-            Nueva Lista
-          </h3>
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600" htmlFor="group-name">
-                Nombre
-              </label>
-              <input
-                id="group-name"
-                name="name"
-                required
-                maxLength={255}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                placeholder="Ej: Auditorías mensuales, Inventario, Turno Noche..."
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-supervisor">
-                <UserIcon className="w-3 h-3" />
-                Asignar a
-              </label>
-              <select
-                id="group-supervisor"
-                name="supervisorUserId"
-                value={supervisorUserId}
-                onChange={(e) => setSupervisorUserId(e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                required
-              >
-                <option value="">Seleccionar...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-type">
-                  <RefreshCw className="w-3 h-3" />
-                  Frecuencia
-                </label>
-                <select
-                  id="group-type"
-                  name="listType"
-                  value={listType}
-                  onChange={(e) => {
-                    const nextType = e.target.value as 'one_time' | 'permanent';
-                    setListType(nextType);
-                    if (nextType === 'permanent') setDueDate('');
-                  }}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                >
-                  <option value="one_time">Una vez</option>
-                  <option value="permanent">Frecuente / permanente</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
-                  <CalendarIcon className="w-3 h-3" />
-                  Vencimiento
-                </label>
-                <input
-                  id="group-due-date"
-                  name="dueDate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  required={listType === 'one_time'}
-                  disabled={listType === 'permanent'}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600" htmlFor="group-description">
-                Descripción (opcional)
-              </label>
-              <textarea
-                id="group-description"
-                name="description"
-                rows={2}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                placeholder="Breve descripción del tipo de tareas que vivirán en este grupo."
-              />
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-slate-600">
-                Color del grupo
-              </span>
-              <div className="flex items-center gap-2">
-                {COLOR_OPTIONS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setSelectedColor(color)}
-                    className={cn(
-                      'w-6 h-6 rounded-full border-2 transition-all',
-                      selectedColor === color
-                        ? 'ring-2 ring-primary scale-110'
-                        : 'opacity-80 hover:opacity-100'
-                    )}
-                    style={{ backgroundColor: color, borderColor: color }}
-                    aria-label={`Elegir color ${color}`}
-                  />
-                ))}
-              </div>
-            </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90 disabled:bg-slate-300 transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              {pending ? 'Creando...' : 'Crear Lista'}
-            </button>
-          </form>
-        </section>
-      )}
 
       {canManage && createdGroupId && (
         <TaskFormDialog
