@@ -24,19 +24,19 @@ export default async function Dashboard({
   const groups = await getTaskGroups();
 
   return (
-    <div className="w-full pb-24 px-4 md:px-8 relative min-h-screen">
+    <div className="w-full max-w-full overflow-x-hidden pb-24 relative min-h-screen">
       
       {/* Título */}
       <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">
-        {viewMode === 'mine' ? 'Mis Tareas' : 'Todas las Tareas'}
+        {viewMode === 'mine' ? 'Mis Tareas' : 'Tareas'}
       </h1>
 
       {/* Banda resumen (ancho reducido) + botones Todas / Solo mías a la derecha */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="max-w-md w-full md:max-w-sm md:w-auto">
+      <div className="flex flex-wrap items-center gap-3 mb-5 w-full min-w-0">
+        <div className="w-full min-w-0 max-w-md md:max-w-sm md:w-auto">
           <ProductivityStats tasks={tasks} />
         </div>
-        <div className="ml-auto">
+        <div className="w-full sm:w-auto sm:ml-auto shrink-0">
           <TaskViewToggle 
             currentView={viewMode} 
             canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true} 

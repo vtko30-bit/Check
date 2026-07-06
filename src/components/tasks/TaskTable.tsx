@@ -188,7 +188,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-full overflow-x-hidden">
       
       {/* --- PESTAÑAS PRINCIPALES --- */}
       <div className="flex items-center gap-6 border-b border-slate-200/80 dark:border-slate-800 mb-6 bg-white/60 dark:bg-slate-900/40 rounded-t-xl px-2 pt-2 pb-1">
@@ -236,16 +236,13 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
 
 
       {/* --- BARRA DE HERRAMIENTAS COMPACTA --- */}
-      <div className="flex flex-col gap-3 w-full">
-        {/* Fila única de controles */}
-        <div className="flex items-center justify-between gap-2 w-full">
-            
-            {/* Contenedor de Filtros y Vistas combinados */}
+      <div className="flex flex-col gap-3 w-full max-w-full min-w-0">
+        {/* Fila de controles: en móvil se apila para evitar scroll horizontal */}
+        <div className="flex flex-col gap-2 w-full min-w-0 md:flex-row md:items-center md:justify-between">
             {viewMode === "active" && (
-                <div className="flex items-center gap-2 w-full">
-                    
-                    {/* Filtros (Diseño Vertical Compacto) */}
-                    <div className="flex-1 flex items-stretch gap-1 p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                <>
+                    {/* Filtros por estado */}
+                    <div className="flex items-stretch gap-1 p-1 w-full min-w-0 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                         {(["all", "pending", "completed"] as const).map((opt) => {
                             const count = opt === "all"
                                 ? tasks.filter(t => !t.isArchived).length
@@ -258,17 +255,17 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 key={opt}
                                 onClick={() => setFilter(opt)}
                                 className={cn(
-                                "flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-md transition-all min-w-[60px]",
+                                "flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 sm:px-1 rounded-md transition-all min-w-0",
                                 filter === opt
                                     ? "bg-white shadow-sm border border-slate-200 dark:bg-slate-800 dark:border-slate-700"
                                     : "hover:bg-slate-100 dark:hover:bg-slate-800",
                                 )}
                             >
                                 <span className={cn(
-                                    "text-[9px] font-bold uppercase tracking-wider mb-0.5 leading-none",
+                                    "text-[9px] font-bold uppercase tracking-wider mb-0.5 leading-none text-center",
                                     filter === opt ? "text-primary" : "text-slate-500"
                                 )}>
-                                    {opt === "all" ? "Todas" : opt === "pending" ? "Pendientes" : "Listas"}
+                                    {opt === "all" ? "Todas" : opt === "pending" ? "Pend." : "Listas"}
                                 </span>
                                 <span className={cn(
                                     "text-xs font-bold leading-none",
@@ -281,31 +278,31 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                         })}
                     </div>
 
-                    {/* Filtro por fecha */}
-                    <div className="flex items-center gap-1 p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    {/* Filtro por fecha + vista lista/tablero */}
+                    <div className="flex items-center gap-2 w-full min-w-0">
+                    <div className="flex flex-1 flex-wrap items-center gap-1 p-1 min-w-0 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                         {(["all", "today", "week", "overdue"] as const).map((opt) => (
                             <button
                                 key={opt}
                                 onClick={() => setDateFilter(opt)}
                                 aria-label={opt === "all" ? "Todas las fechas" : opt === "today" ? "Vencen hoy" : opt === "week" ? "Esta semana" : "Vencidas"}
                                 className={cn(
-                                    "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all whitespace-nowrap",
+                                    "flex-1 min-w-0 px-1.5 sm:px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-center",
                                     dateFilter === opt
                                         ? "bg-white shadow-sm border border-slate-200 dark:bg-slate-800 text-primary"
                                         : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                 )}
                             >
-                                {opt === "all" ? "Fechas" : opt === "today" ? "Hoy" : opt === "week" ? "Semana" : "Vencidas"}
+                                {opt === "all" ? "Fechas" : opt === "today" ? "Hoy" : opt === "week" ? "Sem." : "Venc."}
                             </button>
                         ))}
                     </div>
 
-                    {/* Selector de Vista (Fijo a la derecha) */}
-                    <div className="flex-none flex items-center p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm h-full self-stretch">
+                    <div className="flex-none flex items-center p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm shrink-0">
                         <button 
                             onClick={() => setLayout("list")} 
                             className={cn(
-                                "p-2 rounded-md transition-all h-full flex items-center justify-center", 
+                                "p-2 rounded-md transition-all flex items-center justify-center", 
                                 layout === "list" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
                             )} 
                             title="Lista"
@@ -316,7 +313,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                         <button 
                             onClick={() => setLayout("board")} 
                             className={cn(
-                                "p-2 rounded-md transition-all h-full flex items-center justify-center", 
+                                "p-2 rounded-md transition-all flex items-center justify-center", 
                                 layout === "board" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
                             )} 
                             title="Tablero"
@@ -325,27 +322,29 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                             <Kanban className="w-4 h-4" aria-hidden />
                         </button>
                     </div>
-                </div>
+                    </div>
+                </>
             )}
         </div>
 
-        {/* Barra fija bajo los filtros: Archivar (negro) y Eliminar (rojo), siempre activos.
-            - Si hay selección: actúan sobre las tareas seleccionadas.
-            - Si no hay selección: actúan sobre todas las tareas visibles del filtro actual. */}
-        <div className="flex items-center gap-2 py-2">
+        <div className="flex flex-wrap items-center gap-2 py-2">
           {viewMode === "active" && (
             <button
               onClick={handleBulkArchive}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-slate-900 dark:text-slate-100 transition-all shadow-sm whitespace-nowrap bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-full text-xs font-semibold text-slate-900 dark:text-slate-100 transition-all shadow-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 flex-1 sm:flex-none min-w-0"
             >
-              <Archive className="w-4 h-4" /> Archivar seleccionadas
+              <Archive className="w-4 h-4 shrink-0" />
+              <span className="truncate sm:hidden">Archivar</span>
+              <span className="truncate hidden sm:inline">Archivar seleccionadas</span>
             </button>
           )}
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white transition-all shadow-sm whitespace-nowrap bg-red-600 hover:bg-red-700"
+            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-full text-xs font-semibold text-white transition-all shadow-sm bg-red-600 hover:bg-red-700 flex-1 sm:flex-none min-w-0"
           >
-            <Trash2 className="w-4 h-4" /> Eliminar seleccionadas
+            <Trash2 className="w-4 h-4 shrink-0" />
+            <span className="truncate sm:hidden">Eliminar</span>
+            <span className="truncate hidden sm:inline">Eliminar seleccionadas</span>
           </button>
         </div>
       </div>
@@ -400,7 +399,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                             <div className="flex items-center gap-2 flex-wrap">
                                 <div className="flex items-center gap-2">
                                     <h3 
-                                    className="font-bold text-slate-900 dark:text-slate-100 leading-tight cursor-pointer"
+                                    className="font-bold text-slate-900 dark:text-slate-100 leading-tight cursor-pointer break-words"
                                     onClick={() => setSelectedTask(task)}
                                     >
                                     {task.title}

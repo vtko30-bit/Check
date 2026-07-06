@@ -32,7 +32,7 @@ export default async function MainAppLayout({ children }: { children: React.Reac
         <Sidebar user={session.user} companyLogo={companyLogo} groupedTasksCount={groupedTasksCount} />
       </div>
       
-      <main id="main-content" className="flex-1 flex flex-col overflow-auto w-full bg-sky-100 dark:bg-sky-950/40">
+      <main id="main-content" className="flex-1 flex flex-col overflow-x-hidden w-full min-w-0 bg-sky-100 dark:bg-sky-950/40">
         <OfflineBanner />
         <div className="flex-1 p-4 md:p-8">
           {children}
