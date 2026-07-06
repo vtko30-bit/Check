@@ -26,22 +26,20 @@ export default async function Dashboard({
   return (
     <div className="w-full max-w-full overflow-x-hidden pb-24 relative min-h-screen">
       
-      {/* Título */}
-      <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">
-        {viewMode === 'mine' ? 'Mis Tareas' : 'Tareas'}
-      </h1>
+      {/* Título + Todas / Solo mías en la misma línea */}
+      <div className="flex items-center justify-between gap-2 mb-4 w-full min-w-0">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 shrink-0">
+          {viewMode === 'mine' ? 'Mis Tareas' : 'Tareas'}
+        </h1>
+        <TaskViewToggle
+          currentView={viewMode}
+          canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true}
+        />
+      </div>
 
-      {/* Banda resumen (ancho reducido) + botones Todas / Solo mías a la derecha */}
-      <div className="flex flex-wrap items-center gap-3 mb-5 w-full min-w-0">
-        <div className="w-full min-w-0 max-w-md md:max-w-sm md:w-auto">
-          <ProductivityStats tasks={tasks} />
-        </div>
-        <div className="w-full sm:w-auto sm:ml-auto shrink-0">
-          <TaskViewToggle 
-            currentView={viewMode} 
-            canToggle={(currentUser as { canViewAllTasks?: boolean })?.canViewAllTasks === true} 
-          />
-        </div>
+      {/* Banda resumen */}
+      <div className="mb-5 w-full min-w-0 max-w-md md:max-w-sm">
+        <ProductivityStats tasks={tasks} />
       </div>
 
       {/* Tabla de Tareas */}
