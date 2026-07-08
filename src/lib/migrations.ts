@@ -1,14 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import pg from 'pg';
+import { getPostgresConnectionString } from '@/lib/db-pg';
+import { clearSchemaCheckCache } from '@/lib/db-schema';
 
 const MIGRATIONS_DIR = path.join(process.cwd(), 'db', 'migrations');
 
 export async function applyPendingMigrations(): Promise<string[]> {
-  const connectionString = process.env.POSTGRES_URL;
-  if (!connectionString) {
-    throw new Error('POSTGRES_URL no está configurada.');
-  }
+  const connectionString = getPostgresConnectionString();
 
   const client = new pg.Client({ connectionString });
   await client.connect();
@@ -46,6 +45,10 @@ export async function applyPendingMigrations(): Promise<string[]> {
     }
   } finally {
     await client.end();
+  }
+
+  if (applied.length > 0) {
+    clearSchemaCheckCache();
   }
 
   return applied;

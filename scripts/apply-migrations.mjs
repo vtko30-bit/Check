@@ -12,10 +12,23 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(__dirname, '../db/migrations');
 
+function getPostgresConnectionString() {
+  const cs =
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+    process.env.DATABASE_URL?.trim();
+  if (!cs) {
+    throw new Error('POSTGRES_URL no está configurada.');
+  }
+  return cs;
+}
+
 async function main() {
-  const connectionString = process.env.POSTGRES_URL;
-  if (!connectionString) {
-    console.error('Error: define POSTGRES_URL antes de ejecutar migraciones.');
+  let connectionString;
+  try {
+    connectionString = getPostgresConnectionString();
+  } catch {
+    console.error('Error: define POSTGRES_URL (o POSTGRES_URL_NON_POOLING / DATABASE_URL) antes de ejecutar migraciones.');
     process.exit(1);
   }
 

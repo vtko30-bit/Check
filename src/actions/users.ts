@@ -14,18 +14,7 @@ import {
 } from '@/lib/auth-helpers';
 import { createUserSchema } from '@/lib/user-validation';
 import { toPublicUserList } from '@/lib/users-queries';
-
-let ensuredUserColumns = false;
-
-async function ensureUserColumns() {
-  if (ensuredUserColumns) return;
-
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255)`;
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`;
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_all_tasks BOOLEAN DEFAULT FALSE`;
-
-  ensuredUserColumns = true;
-}
+import { getDatabaseSchemaError } from '@/lib/db-schema';
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -64,7 +53,6 @@ export async function getUsers(): Promise<User[]> {
   if (!currentUser?.id) return [];
 
   try {
-    await ensureUserColumns();
     const timeout = new Promise<{ rows: unknown[] }>((resolve) =>
       setTimeout(() => resolve({ rows: [] }), 20000)
     );
@@ -115,8 +103,12 @@ export async function createUser(formData: FormData) {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  const schemaError = await getDatabaseSchemaError();
+  if (schemaError) {
+    return { success: false, error: schemaError };
+  }
+
   try {
-    await ensureUserColumns();
     const existing = await sql`
       SELECT 1 FROM users WHERE email = ${email} LIMIT 1
     `;
@@ -144,12 +136,6 @@ export async function createUser(formData: FormData) {
     if (message.includes('users_email_key') || message.includes('duplicate key') || message.includes('unique constraint')) {
       return { success: false, error: 'Ya existe un usuario registrado con ese correo.' };
     }
-    if (message.includes('column') && message.includes('does not exist')) {
-      return {
-        success: false,
-        error: 'La base de datos necesita actualizarse. Ejecuta el seed en desarrollo o contacta al administrador.',
-      };
-    }
     if (message.includes('POSTGRES_URL') || message.includes('connection') || message.includes('connect')) {
       return { success: false, error: 'Error de conexión a la base de datos.' };
     }
@@ -174,8 +160,12 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'editor'
     return { success: false, error: 'Solo un administrador puede asignar el rol de administrador.' };
   }
 
+  const schemaError = await getDatabaseSchemaError();
+  if (schemaError) {
+    return { success: false, error: schemaError };
+  }
+
   try {
-    await ensureUserColumns();
     const manageCheck = await assertCanManageUser(user, userId);
     if (!manageCheck.ok) return { success: false, error: manageCheck.error };
 
@@ -232,8 +222,12 @@ export async function updateUser(
   const canSetPassword = currentUser?.role === 'admin';
   const passwordToSet = canSetPassword && newPassword && newPassword.trim().length >= 6 ? newPassword.trim() : null;
 
+  const schemaError = await getDatabaseSchemaError();
+  if (schemaError) {
+    return { success: false, error: schemaError };
+  }
+
   try {
-    await ensureUserColumns();
     const manageCheck = await assertCanManageUser(currentUser, userId);
     if (!manageCheck.ok) return { success: false, error: manageCheck.error };
 
@@ -265,8 +259,12 @@ export async function setUserActive(userId: string, active: boolean) {
   if (currentUser?.id === userId) {
     return { success: false, error: 'No puedes desactivarte a ti mismo.' };
   }
+  const schemaError = await getDatabaseSchemaError();
+  if (schemaError) {
+    return { success: false, error: schemaError };
+  }
+
   try {
-    await ensureUserColumns();
     const manageCheck = await assertCanManageUser(currentUser, userId);
     if (!manageCheck.ok) return { success: false, error: manageCheck.error };
 

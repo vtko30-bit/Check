@@ -11,7 +11,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   try {
-    await runCheckOverdueTasks();
+    const overdueResult = await runCheckOverdueTasks();
+    if (!overdueResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: overdueResult.error ?? 'Error al comprobar tareas vencidas',
+        },
+        { status: 500 }
+      );
+    }
+
     const tasks = await fetchAllTasksForReports();
     const users = await fetchAllUsers();
 
@@ -28,7 +38,7 @@ export async function GET(request: Request) {
 
     const previewUrl = await sendDailyReport(reportEmail, tasks, users);
 
-    return NextResponse.json({ success: true, previewUrl, sentTo: reportEmail });
+    return NextResponse.json({ success: true, previewUrl, sentTo: reportEmail, overdueNotified: overdueResult.count ?? 0 });
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : 'Failed to send email';

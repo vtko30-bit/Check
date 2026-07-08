@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { isBearerAuthorized } from '@/lib/api-auth';
 import { applyPendingMigrations } from '@/lib/migrations';
+import { checkDatabaseSchema, clearSchemaCheckCache } from '@/lib/db-schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   if (shouldMigrate) {
     try {
       appliedMigrations = await applyPendingMigrations();
+      clearSchemaCheckCache();
     } catch (err) {
       return NextResponse.json(
         {
@@ -98,11 +100,27 @@ export async function GET(request: Request) {
     };
   }
 
+  const schema = await checkDatabaseSchema(shouldMigrate);
+  checks.esquema = schema.ok
+    ? { ok: true, detail: 'Esquema al día' }
+    : {
+        ok: false,
+        error: schema.message,
+        detail:
+          schema.missingTables.length > 0 || schema.missingColumns.length > 0
+            ? `Faltan: ${[...schema.missingTables, ...schema.missingColumns].join(', ')}`
+            : undefined,
+      };
+
   const allOk = Object.values(checks).every((c) => c.ok);
   return NextResponse.json({
     ok: allOk,
     checks,
     appliedMigrations: appliedMigrations.length > 0 ? appliedMigrations : undefined,
-    accion: !checks.usuario_admin?.ok ? 'Visita /api/seed para crear tablas y usuario demo' : undefined,
+    accion: !checks.esquema?.ok
+      ? 'Ejecuta npm run db:migrate o GET /api/db-check?migrate=1'
+      : !checks.usuario_admin?.ok
+        ? 'Visita /api/seed para crear tablas y usuario demo'
+        : undefined,
   });
 }

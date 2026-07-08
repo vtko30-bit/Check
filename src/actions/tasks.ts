@@ -9,6 +9,7 @@ import { mapTask } from '@/lib/task-mapper';
 import { getModifyTaskPermission, type TaskActor } from '@/lib/task-permissions';
 import { parseTaskFormData } from '@/lib/task-validation';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { withPgTransaction } from '@/lib/db-transaction';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CREATES = 30;
@@ -407,17 +408,24 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
       }
     }
 
-    // 3. Update the status
-    await sql`UPDATE tasks SET status = ${newStatus} WHERE id = ${taskId}`;
+    // 3. Update the status (y notificar admins en la misma transacción)
+    await withPgTransaction(async (query) => {
+      await query('UPDATE tasks SET status = $1 WHERE id = $2', [newStatus, taskId]);
 
-    // 4. If completed, notify Admins
-    if (newStatus === 'completed') {
-      const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
-      await insertNotificationsForUsers(
-        admins.map((admin) => admin.id as string),
-        `¡Tarea Finalizada! "${taskTitle}" ha sido completada.`
-      );
-    }
+      if (newStatus === 'completed') {
+        const adminsResult = await query<{ id: string }>(
+          `SELECT id FROM users WHERE role = 'admin'`
+        );
+        const adminIds = adminsResult.rows.map((row) => row.id);
+        if (adminIds.length > 0) {
+          await query(
+            `INSERT INTO notifications (user_id, message, created_at)
+             SELECT unnest($1::uuid[]), $2, NOW()`,
+            [adminIds, `¡Tarea Finalizada! "${taskTitle}" ha sido completada.`]
+          );
+        }
+      }
+    });
 
     revalidatePath('/');
     revalidatePath('/calendar');

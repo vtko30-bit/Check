@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendPasswordResetEmail } from '@/lib/email';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { withPgTransaction } from '@/lib/db-transaction';
 import { z } from 'zod';
 
 export async function requestPasswordReset(formData: FormData) {
@@ -68,8 +69,10 @@ export async function resetPassword(token: string, newPassword: string) {
     const userId = rows[0].user_id;
 
     const hashed = await bcrypt.hash(parsed.data, 10);
-    await sql`UPDATE users SET password = ${hashed} WHERE id = ${userId}`;
-    await sql`UPDATE password_reset_tokens SET used = TRUE WHERE token = ${token}`;
+    await withPgTransaction(async (query) => {
+      await query('UPDATE users SET password = $1 WHERE id = $2', [hashed, userId]);
+      await query('UPDATE password_reset_tokens SET used = TRUE WHERE token = $1', [token]);
+    });
 
     return { success: true };
   } catch (error) {

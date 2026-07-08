@@ -1,3 +1,5 @@
+import { getDatabaseSchemaError } from '@/lib/db-schema';
+import { withPgTransaction } from '@/lib/db-transaction';
 import { sql } from '@/lib/db';
 import { Task } from '@/types';
 import { QueryResultRow } from '@/lib/db';
@@ -36,47 +38,54 @@ export async function fetchAllTasksForReports(): Promise<Task[]> {
 export async function runCheckOverdueTasks(): Promise<{
   success: boolean;
   count?: number;
-  warning?: string;
+  error?: string;
 }> {
+  const schemaError = await getDatabaseSchemaError();
+  if (schemaError) {
+    return { success: false, error: schemaError };
+  }
+
   try {
     const today = new Date().toISOString().split('T')[0];
 
-    let overdueTasks: Pick<Task, 'id' | 'title'>[] = [];
-    try {
-      const { rows } = await sql`
-        SELECT id, title FROM tasks 
-        WHERE deadline < ${today} 
-        AND status != 'completed' 
-        AND (overdue_notified IS FALSE OR overdue_notified IS NULL)
-      `;
-      overdueTasks = rows as Pick<Task, 'id' | 'title'>[];
-    } catch (dbError: unknown) {
-      if (dbError instanceof Error && dbError.message?.includes('overdue_notified')) {
-        console.warn("[Database] 'overdue_notified' column not found.");
-        return { success: true, count: 0, warning: 'DB_OUTDATED' };
-      }
-      throw dbError;
-    }
+    return await withPgTransaction(async (query) => {
+      const overdueResult = await query<{ id: string; title: string }>(
+        `SELECT id, title FROM tasks
+         WHERE deadline < $1
+           AND status != 'completed'
+           AND (overdue_notified IS FALSE OR overdue_notified IS NULL)`,
+        [today]
+      );
+      const overdueTasks = overdueResult.rows;
 
-    if (overdueTasks.length > 0) {
-      const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
+      if (overdueTasks.length === 0) {
+        return { success: true, count: 0 };
+      }
+
+      const adminsResult = await query<{ id: string }>(
+        `SELECT id FROM users WHERE role = 'admin'`
+      );
+      const adminIds = adminsResult.rows.map((row) => row.id);
 
       for (const task of overdueTasks) {
-        for (const admin of admins) {
-          await sql`
-            INSERT INTO notifications (user_id, message, created_at)
-            VALUES (${admin.id}, ${`¡PLAZO VENCIDO! "${task.title}" ha superado su fecha límite.`}, NOW())
-          `;
+        const message = `¡PLAZO VENCIDO! "${task.title}" ha superado su fecha límite.`;
+        if (adminIds.length > 0) {
+          await query(
+            `INSERT INTO notifications (user_id, message, created_at)
+             SELECT unnest($1::uuid[]), $2, NOW()`,
+            [adminIds, message]
+          );
         }
-        await sql`UPDATE tasks SET overdue_notified = TRUE WHERE id = ${task.id}`;
+        await query(`UPDATE tasks SET overdue_notified = TRUE WHERE id = $1`, [task.id]);
       }
 
       return { success: true, count: overdueTasks.length };
-    }
-
-    return { success: true, count: 0 };
+    });
   } catch (error) {
     console.error('Error checking overdue tasks:', error);
-    return { success: false };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al comprobar tareas vencidas',
+    };
   }
 }

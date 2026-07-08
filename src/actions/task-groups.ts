@@ -5,6 +5,7 @@ import { sql, QueryResultRow } from '@/lib/db';
 import { TaskGroup } from '@/types';
 import { auth } from '@/auth';
 import { z } from 'zod';
+import { withPgTransaction } from '@/lib/db-transaction';
 
 function mapTaskGroup(row: QueryResultRow): TaskGroup {
   return {
@@ -216,9 +217,10 @@ export async function deleteTaskGroup(id: string) {
   }
 
   try {
-    // Al eliminar un grupo, devolvemos sus tareas a la lista principal (group_id = NULL)
-    await sql`UPDATE tasks SET group_id = NULL WHERE group_id = ${id}`;
-    await sql`DELETE FROM task_groups WHERE id = ${id}`;
+    await withPgTransaction(async (query) => {
+      await query('UPDATE tasks SET group_id = NULL WHERE group_id = $1', [id]);
+      await query('DELETE FROM task_groups WHERE id = $1', [id]);
+    });
 
     revalidatePath('/groups');
     revalidatePath('/');
