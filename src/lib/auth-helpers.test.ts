@@ -6,6 +6,7 @@ vi.mock('@/auth', () => ({
 
 import {
   canAssignAdminRole,
+  canManageUserAccount,
   isAdmin,
   isAdminOrEditor,
 } from '@/lib/auth-helpers';
@@ -27,5 +28,13 @@ describe('auth-helpers', () => {
   it('canAssignAdminRole solo permite a admin', () => {
     expect(canAssignAdminRole({ id: '1', role: 'admin' })).toBe(true);
     expect(canAssignAdminRole({ id: '1', role: 'editor' })).toBe(false);
+  });
+
+  it('canManageUserAccount bloquea editor sobre admin', () => {
+    expect(canManageUserAccount('admin', 'admin')).toBe(true);
+    expect(canManageUserAccount('admin', 'editor')).toBe(true);
+    expect(canManageUserAccount('editor', 'viewer')).toBe(true);
+    expect(canManageUserAccount('editor', 'admin')).toBe(false);
+    expect(canManageUserAccount('viewer', 'viewer')).toBe(true);
   });
 });

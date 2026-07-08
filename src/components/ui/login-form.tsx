@@ -10,6 +10,8 @@ const AUTH_ERRORS: Record<string, string> = {
     'No tienes permiso para iniciar sesión.',
   InactiveAccount:
     'Tu cuenta está desactivada. Pide a un administrador que la reactive en Usuarios.',
+  NotRegistered:
+    'Tu correo no está registrado. Pide a un administrador que te cree la cuenta en Usuarios.',
   DbError:
     'No se pudo conectar con la base de datos al iniciar sesión. Revisa POSTGRES_URL en Vercel o intenta más tarde.',
   GoogleSignIn: 'No se pudo obtener el correo de Google. Intenta de nuevo.',

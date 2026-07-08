@@ -24,21 +24,31 @@ export const authConfig = {
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnLogin = nextUrl.pathname.startsWith("/login");
+      const isOnLogin =
+        nextUrl.pathname.startsWith("/login") ||
+        nextUrl.pathname.startsWith("/forgot-password") ||
+        nextUrl.pathname.startsWith("/reset-password");
       const isOnDashboard =
         nextUrl.pathname === "/" ||
         nextUrl.pathname.startsWith("/calendar") ||
         nextUrl.pathname.startsWith("/users") ||
-        nextUrl.pathname.startsWith("/settings");
+        nextUrl.pathname.startsWith("/settings") ||
+        nextUrl.pathname.startsWith("/groups");
 
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Auth] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}`);
       }
 
+      if (auth?.sessionRevoked && !isOnLogin) {
+        return Response.redirect(new URL('/login?error=InactiveAccount', nextUrl));
+      }
+
       if (isOnDashboard && !isLoggedIn) return false;
-      if (isOnLogin && isLoggedIn) return Response.redirect(new URL("/", nextUrl));
-      return true; // Allow everything else (public assets, API, etc.)
+      if (isOnLogin && isLoggedIn && !auth?.sessionRevoked) {
+        return Response.redirect(new URL("/", nextUrl));
+      }
+      return true;
     },
   },
-  providers: [], // Add providers with an empty array for now
+  providers: [],
 } satisfies NextAuthConfig;

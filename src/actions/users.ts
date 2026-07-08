@@ -8,6 +8,7 @@ import { auth } from '@/auth';
 import { z } from 'zod';
 import {
   canAssignAdminRole,
+  canManageUserAccount,
   getSessionUser,
   isAdminOrEditor,
 } from '@/lib/auth-helpers';
@@ -38,6 +39,24 @@ function mapUser(row: Record<string, unknown>): User {
     isActive: row.is_active !== false,
     canViewAllTasks: row.can_view_all_tasks === true,
   };
+}
+
+async function assertCanManageUser(
+  actor: { role?: string },
+  targetUserId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { rows } = await sql`SELECT role FROM users WHERE id = ${targetUserId}`;
+  if (!rows.length) {
+    return { ok: false, error: 'Usuario no encontrado.' };
+  }
+  const targetRole = rows[0].role as string;
+  if (!canManageUserAccount(actor.role, targetRole)) {
+    return {
+      ok: false,
+      error: 'Solo un administrador puede modificar cuentas de administrador.',
+    };
+  }
+  return { ok: true };
 }
 
 export async function getUsers(): Promise<User[]> {
@@ -157,6 +176,9 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'editor'
 
   try {
     await ensureUserColumns();
+    const manageCheck = await assertCanManageUser(user, userId);
+    if (!manageCheck.ok) return { success: false, error: manageCheck.error };
+
     // Evitar dejar el sistema sin administradores
     if (newRole !== 'admin') {
       const { rows } = await sql`SELECT id FROM users WHERE role = 'admin'`;
@@ -212,6 +234,9 @@ export async function updateUser(
 
   try {
     await ensureUserColumns();
+    const manageCheck = await assertCanManageUser(currentUser, userId);
+    if (!manageCheck.ok) return { success: false, error: manageCheck.error };
+
     const existing = await sql`SELECT id FROM users WHERE email = ${email} AND id != ${userId}`;
     if (existing.rowCount && existing.rowCount > 0) {
       return { success: false, error: 'Ya existe otro usuario con ese correo.' };
@@ -242,6 +267,9 @@ export async function setUserActive(userId: string, active: boolean) {
   }
   try {
     await ensureUserColumns();
+    const manageCheck = await assertCanManageUser(currentUser, userId);
+    if (!manageCheck.ok) return { success: false, error: manageCheck.error };
+
     await sql`UPDATE users SET is_active = ${active} WHERE id = ${userId}`;
     revalidatePath('/users');
     revalidatePath('/');

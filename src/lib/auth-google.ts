@@ -12,7 +12,7 @@ export type DbAuthUser = {
 
 export type GoogleUserResult =
   | { ok: true; user: DbAuthUser }
-  | { ok: false; reason: 'inactive' | 'db_error' };
+  | { ok: false; reason: 'inactive' | 'not_registered' | 'db_error' };
 
 function mapDbUser(row: Record<string, unknown>): DbAuthUser {
   return {
@@ -26,11 +26,30 @@ function mapDbUser(row: Record<string, unknown>): DbAuthUser {
   };
 }
 
+export function resolveGoogleSignIn(existing: DbAuthUser | null): GoogleUserResult {
+  if (!existing) {
+    return { ok: false, reason: 'not_registered' };
+  }
+  if (!existing.is_active) {
+    return { ok: false, reason: 'inactive' };
+  }
+  return { ok: true, user: existing };
+}
+
 export async function findUserByEmail(email: string): Promise<DbAuthUser | null> {
   const normalized = email.trim().toLowerCase();
   const rows = await queryPg<Record<string, unknown>>(
     `SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1`,
     [normalized]
+  );
+  if (!rows.length) return null;
+  return mapDbUser(rows[0]);
+}
+
+export async function findUserById(id: string): Promise<DbAuthUser | null> {
+  const rows = await queryPg<Record<string, unknown>>(
+    `SELECT * FROM users WHERE id = $1 LIMIT 1`,
+    [id]
   );
   if (!rows.length) return null;
   return mapDbUser(rows[0]);
@@ -44,8 +63,8 @@ function safeAvatarUrl(image?: string | null, fallback?: string): string {
   return url.length > 2000 ? url.slice(0, 2000) : url;
 }
 
-/** Busca usuario por email o lo crea como viewer al iniciar sesión con Google. */
-export async function findOrCreateGoogleUser(
+/** Solo permite iniciar sesión con Google si el usuario ya existe en la BD. */
+export async function findGoogleUserForSignIn(
   email: string,
   name?: string | null,
   image?: string | null
@@ -53,46 +72,16 @@ export async function findOrCreateGoogleUser(
   try {
     const normalized = email.trim().toLowerCase();
     const existing = await findUserByEmail(normalized);
+    const resolved = resolveGoogleSignIn(existing);
 
-    if (existing) {
-      if (!existing.is_active) {
-        return { ok: false, reason: 'inactive' };
-      }
-      await syncGoogleProfile(existing.id, name, image);
-      return { ok: true, user: existing };
+    if (!resolved.ok) {
+      return resolved;
     }
 
-    const displayName = name?.trim() || normalized.split('@')[0];
-    const avatarUrl = safeAvatarUrl(
-      image,
-      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`
-    );
-
-    const inserted = await queryPg<Record<string, unknown>>(
-      `INSERT INTO users (name, email, role, avatar_url, password, can_view_all_tasks)
-       VALUES ($1, $2, 'viewer', $3, NULL, FALSE)
-       RETURNING *`,
-      [displayName, normalized, avatarUrl]
-    );
-
-    if (!inserted.length) {
-      return { ok: false, reason: 'db_error' };
-    }
-
-    return { ok: true, user: mapDbUser(inserted[0]) };
+    await syncGoogleProfile(resolved.user.id, name, image);
+    return resolved;
   } catch (error) {
-    console.error('findOrCreateGoogleUser error:', error);
-
-    try {
-      const retry = await findUserByEmail(email.trim().toLowerCase());
-      if (retry) {
-        if (!retry.is_active) return { ok: false, reason: 'inactive' };
-        return { ok: true, user: retry };
-      }
-    } catch (retryError) {
-      console.error('findOrCreateGoogleUser retry error:', retryError);
-    }
-
+    console.error('findGoogleUserForSignIn error:', error);
     return { ok: false, reason: 'db_error' };
   }
 }

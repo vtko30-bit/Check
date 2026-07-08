@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+data.json
+**/client_secret*.json
+Nueva carpeta/
 
 # debug
 npm-debug.log*

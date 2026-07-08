@@ -286,9 +286,15 @@ export async function updateTask(taskId: string, formData: FormData) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
-    const { title, description, assignedUserId, deadline, notes, frequency, startDate, priority, groupId } = parsed.data;
+    const { title, description, assignedUserId: parsedAssignedUserId, deadline, notes, frequency, startDate, priority, groupId } = parsed.data;
     const subtasksJson = formData.get('subtasks') as string;
     const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
+
+    let assignedUserId = parsedAssignedUserId;
+    if (user.role !== 'admin') {
+      const existing = await sql`SELECT assigned_user_id FROM tasks WHERE id = ${taskId}`;
+      assignedUserId = (existing.rows[0]?.assigned_user_id as string | null) ?? null;
+    }
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
     await sql`

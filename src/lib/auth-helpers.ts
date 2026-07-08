@@ -20,3 +20,14 @@ export function isAdminOrEditor(user: { role?: string } | null | undefined): boo
 export function canAssignAdminRole(actor: { role?: string } | null | undefined): boolean {
   return isAdmin(actor);
 }
+
+/** Editores no pueden modificar cuentas con rol admin. */
+export function canManageUserAccount(
+  actorRole: string | undefined,
+  targetRole: string | undefined
+): boolean {
+  if (targetRole === 'admin' && actorRole !== 'admin') {
+    return false;
+  }
+  return true;
+}
