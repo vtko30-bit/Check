@@ -27,7 +27,7 @@ export default async function Dashboard({
     <div className="w-full max-w-full overflow-x-hidden pb-24 relative min-h-screen">
       
       {/* Título + Todas / Solo mías en la misma línea */}
-      <div className="flex items-center justify-between gap-2 mb-4 w-full min-w-0">
+      <div className="flex items-center justify-between gap-2 mb-3 w-full min-w-0">
         <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 shrink-0">
           {viewMode === 'mine' ? 'Mis Tareas' : 'Tareas'}
         </h1>
@@ -38,7 +38,7 @@ export default async function Dashboard({
       </div>
 
       {/* Banda resumen */}
-      <div className="mb-5 w-full min-w-0 max-w-md md:max-w-sm">
+      <div className="mb-3 md:mb-5 w-full min-w-0 max-w-md md:max-w-sm">
         <ProductivityStats tasks={tasks} />
       </div>
 

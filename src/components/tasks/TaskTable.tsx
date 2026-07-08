@@ -191,23 +191,24 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
     <div className="space-y-4 w-full max-w-full overflow-x-hidden">
       
       {/* --- PESTAÑAS PRINCIPALES --- */}
-      <div className="flex items-center gap-6 border-b border-slate-200/80 dark:border-slate-800 mb-6 bg-white/60 dark:bg-slate-900/40 rounded-t-xl px-2 pt-2 pb-1">
+      <div className="flex items-center justify-between gap-2 mb-3 md:mb-6 bg-white/70 dark:bg-slate-900/40 rounded-xl border border-slate-200/80 dark:border-slate-800 px-2 py-1.5 md:rounded-t-xl md:border-x-0 md:border-t-0 md:border-b md:px-2 md:pt-2 md:pb-1">
+        <div className="flex items-center gap-1">
         <button
           onClick={() => {
             setViewMode("active");
             setSelectedIds(new Set());
           }}
           className={cn(
-            "pb-3 text-sm font-medium flex items-center gap-2 transition-all relative",
+            "px-2.5 py-1.5 md:pb-3 md:px-0 md:py-0 text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 transition-all relative rounded-full md:rounded-none",
             viewMode === "active" 
-              ? "text-primary font-bold" 
-              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              ? "text-primary font-bold bg-primary/10 md:bg-transparent" 
+              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 md:hover:bg-transparent"
           )}
         >
-          <LayoutList className="w-4 h-4" />
+          <LayoutList className="w-3.5 h-3.5 md:w-4 md:h-4" />
           Activas
           {viewMode === "active" && (
-            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
+            <span className="hidden md:block absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
           )}
         </button>
 
@@ -217,32 +218,57 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
             setSelectedIds(new Set());
           }}
           className={cn(
-            "pb-3 text-sm font-medium flex items-center gap-2 transition-all relative",
+            "px-2.5 py-1.5 md:pb-3 md:px-0 md:py-0 text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 transition-all relative rounded-full md:rounded-none",
             viewMode === "archived" 
-              ? "text-primary font-bold" 
-              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              ? "text-primary font-bold bg-primary/10 md:bg-transparent" 
+              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 md:hover:bg-transparent"
           )}
         >
-          <Archive className="w-4 h-4" />
+          <Archive className="w-3.5 h-3.5 md:w-4 md:h-4" />
           Archivadas
           <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full text-slate-500">
             {tasks.filter(t => t.isArchived).length}
           </span>
            {viewMode === "archived" && (
-            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
+            <span className="hidden md:block absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
           )}
         </button>
+        </div>
+        {viewMode === "active" && (
+          <div className="flex-none flex items-center p-0.5 md:p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-lg md:rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm shrink-0">
+            <button 
+                onClick={() => setLayout("list")} 
+                className={cn(
+                    "p-1.5 md:p-2 rounded-md transition-all flex items-center justify-center", 
+                    layout === "list" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
+                )} 
+                title="Lista"
+                aria-label="Vista lista"
+            >
+                <List className="w-3.5 h-3.5 md:w-4 md:h-4" aria-hidden />
+            </button>
+            <button 
+                onClick={() => setLayout("board")} 
+                className={cn(
+                    "p-1.5 md:p-2 rounded-md transition-all flex items-center justify-center", 
+                    layout === "board" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
+                )} 
+                title="Tablero"
+                aria-label="Vista tablero"
+            >
+                <Kanban className="w-3.5 h-3.5 md:w-4 md:h-4" aria-hidden />
+            </button>
+          </div>
+        )}
       </div>
 
 
       {/* --- BARRA DE HERRAMIENTAS COMPACTA --- */}
-      <div className="flex flex-col gap-3 w-full max-w-full min-w-0">
-        {/* Fila de controles: en móvil se apila para evitar scroll horizontal */}
+      <div className="flex flex-col gap-2 md:gap-3 w-full max-w-full min-w-0">
         <div className="flex flex-col gap-2 w-full min-w-0 md:flex-row md:items-center md:justify-between">
             {viewMode === "active" && (
                 <>
-                    {/* Filtros por estado */}
-                    <div className="flex items-stretch gap-1 p-1 w-full min-w-0 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center gap-1 p-1 w-full min-w-0 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                         {(["all", "pending", "completed"] as const).map((opt) => {
                             const count = opt === "all"
                                 ? tasks.filter(t => !t.isArchived).length
@@ -255,20 +281,20 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 key={opt}
                                 onClick={() => setFilter(opt)}
                                 className={cn(
-                                "flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 sm:px-1 rounded-md transition-all min-w-0",
+                                "flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg transition-all min-w-0 text-[11px] font-medium",
                                 filter === opt
                                     ? "bg-white shadow-sm border border-slate-200 dark:bg-slate-800 dark:border-slate-700"
                                     : "hover:bg-slate-100 dark:hover:bg-slate-800",
                                 )}
                             >
                                 <span className={cn(
-                                    "text-[9px] font-bold uppercase tracking-wider mb-0.5 leading-none text-center",
+                                    "leading-none truncate",
                                     filter === opt ? "text-primary" : "text-slate-500"
                                 )}>
                                     {opt === "all" ? "Todas" : opt === "pending" ? "Pend." : "Listas"}
                                 </span>
                                 <span className={cn(
-                                    "text-xs font-bold leading-none",
+                                    "text-[10px] font-bold leading-none",
                                     filter === opt ? "text-slate-800 dark:text-slate-100" : "text-slate-400"
                                 )}>
                                     {count}
@@ -278,7 +304,6 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                         })}
                     </div>
 
-                    {/* Filtro por fecha + vista lista/tablero */}
                     <div className="flex items-center gap-2 w-full min-w-0">
                     <div className="flex flex-1 flex-wrap items-center gap-1 p-1 min-w-0 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                         {(["all", "today", "week", "overdue"] as const).map((opt) => (
@@ -287,7 +312,7 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                                 onClick={() => setDateFilter(opt)}
                                 aria-label={opt === "all" ? "Todas las fechas" : opt === "today" ? "Vencen hoy" : opt === "week" ? "Esta semana" : "Vencidas"}
                                 className={cn(
-                                    "flex-1 min-w-0 px-1.5 sm:px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-center",
+                                    "flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all text-center",
                                     dateFilter === opt
                                         ? "bg-white shadow-sm border border-slate-200 dark:bg-slate-800 text-primary"
                                         : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
@@ -297,37 +322,15 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
                             </button>
                         ))}
                     </div>
-
-                    <div className="flex-none flex items-center p-1 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-sm shrink-0">
-                        <button 
-                            onClick={() => setLayout("list")} 
-                            className={cn(
-                                "p-2 rounded-md transition-all flex items-center justify-center", 
-                                layout === "list" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
-                            )} 
-                            title="Lista"
-                            aria-label="Vista lista"
-                        >
-                            <List className="w-4 h-4" aria-hidden />
-                        </button>
-                        <button 
-                            onClick={() => setLayout("board")} 
-                            className={cn(
-                                "p-2 rounded-md transition-all flex items-center justify-center", 
-                                layout === "board" ? "bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-600"
-                            )} 
-                            title="Tablero"
-                            aria-label="Vista tablero"
-                        >
-                            <Kanban className="w-4 h-4" aria-hidden />
-                        </button>
-                    </div>
                     </div>
                 </>
             )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 py-2">
+        <div className={cn(
+          "flex flex-wrap items-center gap-2 py-1 md:py-2",
+          selectedIds.size === 0 && "hidden md:flex"
+        )}>
           {viewMode === "active" && (
             <button
               onClick={handleBulkArchive}
