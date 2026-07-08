@@ -3,13 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { sql } from '@/lib/db';
 import { SubTask, Task } from '@/types';
-import { insertNotificationsForUsers } from '@/lib/notifications-db';
 import { getSessionUser } from '@/lib/auth-helpers';
 import { mapTask } from '@/lib/task-mapper';
 import { getModifyTaskPermission, type TaskActor } from '@/lib/task-permissions';
 import { parseTaskFormData } from '@/lib/task-validation';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { withPgTransaction } from '@/lib/db-transaction';
+import { getDatabaseSchemaError } from '@/lib/db-schema';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CREATES = 30;
@@ -214,15 +214,40 @@ export async function bulkArchiveTasks(taskIds: string[]) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: 'No autenticado' };
+    if (taskIds.length === 0) {
+      return { success: false, error: 'No hay tareas seleccionadas.' };
+    }
+
+    let processed = 0;
+    let skipped = 0;
 
     for (const id of taskIds) {
       const perm = await canModifyTask(id, user);
-      if (!perm.ok) continue;
+      if (!perm.ok) {
+        skipped++;
+        continue;
+      }
       await sql`UPDATE tasks SET is_archived = TRUE WHERE id = ${id}`;
+      processed++;
     }
+
     revalidatePath('/', 'page');
     revalidatePath('/calendar', 'page');
-    return { success: true };
+
+    if (processed === 0) {
+      return {
+        success: false,
+        error: 'No tienes permiso para archivar ninguna de las tareas seleccionadas.',
+      };
+    }
+
+    return {
+      success: true,
+      processed,
+      skipped,
+      warning:
+        skipped > 0 ? `${skipped} tarea(s) omitida(s) por permisos.` : undefined,
+    };
   } catch (error) {
     console.error("Error bulk archiving tasks:", error);
     return { success: false, error: "Failed to bulk archive tasks" };
@@ -262,15 +287,40 @@ export async function bulkDeleteTasks(taskIds: string[]) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: 'No autenticado' };
+    if (taskIds.length === 0) {
+      return { success: false, error: 'No hay tareas seleccionadas.' };
+    }
+
+    let processed = 0;
+    let skipped = 0;
 
     for (const id of taskIds) {
       const perm = await canModifyTask(id, user);
-      if (!perm.ok) continue;
+      if (!perm.ok) {
+        skipped++;
+        continue;
+      }
       await sql`DELETE FROM tasks WHERE id = ${id}`;
+      processed++;
     }
+
     revalidatePath('/');
     revalidatePath('/calendar');
-    return { success: true };
+
+    if (processed === 0) {
+      return {
+        success: false,
+        error: 'No tienes permiso para eliminar ninguna de las tareas seleccionadas.',
+      };
+    }
+
+    return {
+      success: true,
+      processed,
+      skipped,
+      warning:
+        skipped > 0 ? `${skipped} tarea(s) omitida(s) por permisos.` : undefined,
+    };
   } catch (error) {
     console.error("Error bulk deleting tasks:", error);
     return { success: false, error: "Failed to bulk delete tasks" };
@@ -335,6 +385,12 @@ export async function createTask(formData: FormData) {
       const first = parsed.error.issues[0];
       return { success: false, error: first?.message ?? 'Datos inválidos' };
     }
+
+    const schemaError = await getDatabaseSchemaError();
+    if (schemaError) {
+      return { success: false, error: schemaError };
+    }
+
     let { assignedUserId, title, description, deadline, notes, frequency, startDate, priority, groupId } = parsed.data;
     // Si no es admin, la tarea queda sin asignar y pendiente de que un admin la gestione
     if (user.role !== 'admin') {
@@ -344,25 +400,45 @@ export async function createTask(formData: FormData) {
     const subtasks = dedupeSubtasks(subtasksJson ? JSON.parse(subtasksJson) : []);
 
     const startDateVal = frequency === 'date_range' && startDate ? startDate : null;
-    await sql`
-      INSERT INTO tasks (title, description, assigned_user_id, deadline, start_date, status, notes, created_at, subtasks, frequency, priority, group_id)
-      VALUES (${title}, ${description}, ${assignedUserId || null}, ${deadline}, ${startDateVal}, 'pending', ${notes}, NOW(), ${JSON.stringify(subtasks)}, ${frequency}, ${priority}, ${groupId || null})
-    `;
 
-    // Notificar a administradores si la tarea la ha creado un usuario no admin
-    if (user.role !== 'admin') {
-      try {
-        const { rows: admins } = await sql`SELECT id FROM users WHERE role = 'admin'`;
-        const creatorName = sessionUser.name || 'un usuario';
-        const safeTitle = title.length > 80 ? `${title.slice(0, 77)}...` : title;
-        await insertNotificationsForUsers(
-          admins.map((admin) => admin.id as string),
-          `Nueva tarea pendiente de asignación: "${safeTitle}" creada por ${creatorName}.`
+    await withPgTransaction(async (query) => {
+      await query(
+        `INSERT INTO tasks (
+           title, description, assigned_user_id, deadline, start_date,
+           status, notes, created_at, subtasks, frequency, priority, group_id
+         )
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, NOW(), $7, $8, $9, $10)`,
+        [
+          title,
+          description,
+          assignedUserId || null,
+          deadline,
+          startDateVal,
+          notes,
+          JSON.stringify(subtasks),
+          frequency,
+          priority,
+          groupId || null,
+        ]
+      );
+
+      if (user.role !== 'admin') {
+        const adminsResult = await query<{ id: string }>(
+          `SELECT id FROM users WHERE role = 'admin'`
         );
-      } catch (notifyError) {
-        console.error('Error sending task approval notifications:', notifyError);
+        const adminIds = adminsResult.rows.map((row) => row.id);
+        if (adminIds.length > 0) {
+          const creatorName = sessionUser.name || 'un usuario';
+          const safeTitle = title.length > 80 ? `${title.slice(0, 77)}...` : title;
+          const message = `Nueva tarea pendiente de asignación: "${safeTitle}" creada por ${creatorName}.`;
+          await query(
+            `INSERT INTO notifications (user_id, message, created_at)
+             SELECT unnest($1::uuid[]), $2, NOW()`,
+            [adminIds, message]
+          );
+        }
       }
-    }
+    });
 
     revalidatePath('/');
     revalidatePath('/calendar');
@@ -370,13 +446,6 @@ export async function createTask(formData: FormData) {
   } catch (error) {
     console.error("Error creating task:", error);
     const msg = error instanceof Error ? error.message : '';
-
-    if (msg.toLowerCase().includes('start_date') && msg.toLowerCase().includes('column')) {
-      return {
-        success: false,
-        error: 'La base de datos necesita actualizarse (columna start_date). Ejecuta el seed en desarrollo o contacta al administrador.',
-      };
-    }
 
     return { success: false, error: process.env.NODE_ENV === 'development' ? msg : "Failed to create task" };
   }

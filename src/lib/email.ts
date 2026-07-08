@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { Task, User } from '@/types';
+import { escapeHtml } from '@/lib/html-escape';
 
 type MailTransporter = {
   transporter: nodemailer.Transporter;
@@ -93,11 +94,14 @@ export async function sendDailyReport(to: string, tasks: Task[], users: User[]) 
           ${criticalTasks
             .map((t) => {
               const user = users.find((u) => u.id === t.assignedUserId);
+              const title = escapeHtml(t.title);
+              const assignee = escapeHtml(user?.name || 'Sin asignar');
+              const deadline = escapeHtml(new Date(t.deadline).toLocaleDateString());
               return `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">${t.title}</td>
-                <td style="padding: 10px;">${user?.name || 'Sin asignar'}</td>
-                <td style="padding: 10px; color: red;">${new Date(t.deadline).toLocaleDateString()}</td>
+                <td style="padding: 10px;">${title}</td>
+                <td style="padding: 10px;">${assignee}</td>
+                <td style="padding: 10px; color: red;">${deadline}</td>
               </tr>
             `;
             })
@@ -135,10 +139,10 @@ export async function sendPasswordResetEmail(to: string, resetLink: string, user
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
       <h1 style="color: #14b8a6;">Recuperar contraseña - Check</h1>
-      <p>Hola${userName ? ` ${userName}` : ''},</p>
+      <p>Hola${userName ? ` ${escapeHtml(userName)}` : ''},</p>
       <p>Recibiste este correo porque solicitaste recuperar tu contraseña.</p>
       <p>
-        <a href="${resetLink}" style="display: inline-block; background: #14b8a6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+        <a href="${escapeHtml(resetLink)}" style="display: inline-block; background: #14b8a6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
           Restablecer contraseña
         </a>
       </p>

@@ -8,18 +8,24 @@ import { z } from 'zod';
 import { withPgTransaction } from '@/lib/db-transaction';
 
 function mapTaskGroup(row: QueryResultRow): TaskGroup {
+  const r = row as Record<string, unknown>;
   return {
-    id: row.id,
-    name: row.name,
-    description: (row as any).description || '',
-    color: (row as any).color || null,
-    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-    supervisorUserId: (row as any).supervisor_user_id || null,
-    responsibleUserId: (row as any).responsible_user_id || null,
-    listType: (row as any).list_type || 'one_time',
-    dueDate: (row as any).due_date ? new Date((row as any).due_date).toISOString().split('T')[0] : null,
-    lastCompletedAt: (row as any).last_completed_at ? new Date((row as any).last_completed_at).toISOString() : null,
-    lastCompletedBy: (row as any).last_completed_by || null,
+    id: row.id as string,
+    name: row.name as string,
+    description: (r.description as string) || '',
+    color: (r.color as string) || null,
+    createdAt: row.created_at
+      ? new Date(row.created_at as string).toISOString()
+      : new Date().toISOString(),
+    supervisorUserId: (r.supervisor_user_id as string) || null,
+    listType: (r.list_type as TaskGroup['listType']) || 'one_time',
+    dueDate: r.due_date
+      ? new Date(r.due_date as string).toISOString().split('T')[0]
+      : null,
+    lastCompletedAt: r.last_completed_at
+      ? new Date(r.last_completed_at as string).toISOString()
+      : null,
+    lastCompletedBy: (r.last_completed_by as string) || null,
   };
 }
 

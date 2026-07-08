@@ -127,7 +127,9 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
       const result = await bulkArchiveTasks(ids);
       if (result?.success) {
         setSelectedIds(new Set());
-        toast.success(`${ids.length} tarea${ids.length !== 1 ? "s" : ""} archivada${ids.length !== 1 ? "s" : ""}`);
+        const count = result.processed ?? ids.length;
+        toast.success(`${count} tarea${count !== 1 ? "s" : ""} archivada${count !== 1 ? "s" : ""}`);
+        if (result.warning) toast.warning(result.warning);
       } else if (result?.error) toast.error(result.error);
     }
   };
@@ -143,7 +145,9 @@ export function TaskTable({ tasks, users, currentUser, groups = [] }: TaskTableP
       const result = await bulkDeleteTasks(ids);
       if (result?.success) {
         setSelectedIds(new Set());
-        toast.success(`${ids.length} tarea${ids.length !== 1 ? "s" : ""} eliminada${ids.length !== 1 ? "s" : ""}`);
+        const count = result.processed ?? ids.length;
+        toast.success(`${count} tarea${count !== 1 ? "s" : ""} eliminada${count !== 1 ? "s" : ""}`);
+        if (result.warning) toast.warning(result.warning);
       } else if (result?.error) toast.error(result.error);
     }
   };

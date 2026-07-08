@@ -45,7 +45,6 @@ export interface TaskGroup {
   color?: string;
   createdAt: string;
   supervisorUserId?: string | null;
-  responsibleUserId?: string | null;
   listType?: TaskGroupType;
   dueDate?: string | null;
   lastCompletedAt?: string | null;
