@@ -14,7 +14,7 @@ function mapTaskGroup(row: QueryResultRow): TaskGroup {
     id: row.id as string,
     name: row.name as string,
     description: (r.description as string) || '',
-    color: (r.color as string) || null,
+    color: (r.color as string) || undefined,
     createdAt: row.created_at
       ? new Date(row.created_at as string).toISOString()
       : new Date().toISOString(),

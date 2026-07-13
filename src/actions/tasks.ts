@@ -330,6 +330,7 @@ export async function bulkDeleteTasks(taskIds: string[]) {
 export async function updateTask(taskId: string, formData: FormData) {
   try {
     const user = await getCurrentUser();
+    if (!user) return { success: false, error: 'No autenticado' };
     const perm = await canModifyTask(taskId, user);
     if (!perm.ok) return { success: false, error: perm.error };
     const parsed = parseTaskFormData(formData);
