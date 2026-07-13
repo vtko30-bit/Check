@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createTask, updateTask } from '@/actions/tasks';
+import { TASK_FREQUENCY_OPTIONS } from '@/lib/task-validation';
+import { frequencyLabels } from '@/components/tasks/task-table-utils';
 import { Plus, Calendar as CalendarIcon, User as UserIcon, FileText, RefreshCw, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { User, Task } from '@/types';
@@ -30,6 +32,7 @@ interface TaskFormDialogProps {
   defaultAssignedUserId?: string;
   defaultFrequency?: string;
   defaultDeadline?: string;
+  defaultStartDate?: string;
   onTaskCreated?: (groupId?: string) => void;
 }
 
@@ -44,6 +47,7 @@ export function TaskFormDialog({
   defaultAssignedUserId,
   defaultFrequency,
   defaultDeadline,
+  defaultStartDate,
   onTaskCreated,
 }: TaskFormDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
@@ -62,7 +66,12 @@ export function TaskFormDialog({
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
   const isDateRange = frequency === 'date_range';
-  const lockedFromList = !!groupId && !!defaultAssignedUserId && !!defaultFrequency && !!defaultDeadline;
+  const lockedFromList =
+    !!groupId &&
+    !!defaultAssignedUserId &&
+    !!defaultFrequency &&
+    !!defaultDeadline &&
+    (defaultFrequency !== 'date_range' || !!defaultStartDate);
 
   useEffect(() => {
     if (open) {
@@ -267,7 +276,7 @@ export function TaskFormDialog({
               {lockedFromList ? (
                 <>
                   <p className="text-xs text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md border border-slate-100 dark:border-slate-800">
-                    {defaultFrequency === 'permanent' ? 'Frecuente / permanente' : 'Una vez'}
+                    {frequencyLabels[defaultFrequency] ?? defaultFrequency}
                   </p>
                   <input type="hidden" name="frequency" value={defaultFrequency || 'one_time'} />
                 </>
@@ -279,18 +288,11 @@ export function TaskFormDialog({
                   onChange={(e) => setFrequency(e.target.value)}
                   className="flex h-11 w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-900/80 dark:border-slate-700"
                 >
-                  <option value="one_time">Una vez</option>
-                  <option value="daily">Diario</option>
-                  <option value="weekly">Semanal (mismo día que vencimiento)</option>
-                  <option value="weekly_0">Semanal - Domingos</option>
-                  <option value="weekly_1">Semanal - Lunes</option>
-                  <option value="weekly_2">Semanal - Martes</option>
-                  <option value="weekly_3">Semanal - Miércoles</option>
-                  <option value="weekly_4">Semanal - Jueves</option>
-                  <option value="weekly_5">Semanal - Viernes</option>
-                  <option value="weekly_6">Semanal - Sábados</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="date_range">Rango de Fechas</option>
+                  {TASK_FREQUENCY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               )}
             </div>
@@ -298,15 +300,38 @@ export function TaskFormDialog({
             {/* Vencimiento o rango */}
             <div className="space-y-1.5">
               {lockedFromList ? (
-                <>
-                  <Label className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
-                    <CalendarIcon className="w-3.5 h-3.5" /> Vencimiento
-                  </Label>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md border border-slate-100 dark:border-slate-800">
-                    {defaultDeadline || '—'}
-                  </p>
-                  <input type="hidden" name="deadline" value={defaultDeadline || ''} />
-                </>
+                defaultFrequency === 'date_range' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
+                        <CalendarIcon className="w-3.5 h-3.5" /> Desde
+                      </Label>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md border border-slate-100 dark:border-slate-800">
+                        {defaultStartDate || '—'}
+                      </p>
+                      <input type="hidden" name="startDate" value={defaultStartDate || ''} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
+                        <CalendarIcon className="w-3.5 h-3.5" /> Hasta
+                      </Label>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md border border-slate-100 dark:border-slate-800">
+                        {defaultDeadline || '—'}
+                      </p>
+                      <input type="hidden" name="deadline" value={defaultDeadline || ''} />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Label className="text-slate-700 dark:text-slate-100 font-semibold flex items-center gap-2 text-sm">
+                      <CalendarIcon className="w-3.5 h-3.5" /> Vencimiento
+                    </Label>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md border border-slate-100 dark:border-slate-800">
+                      {defaultDeadline || '—'}
+                    </p>
+                    <input type="hidden" name="deadline" value={defaultDeadline || ''} />
+                  </>
+                )
               ) : isDateRange ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">

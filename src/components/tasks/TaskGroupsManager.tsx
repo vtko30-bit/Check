@@ -10,6 +10,7 @@ import {
   deleteTaskGroup,
   updateTaskGroup,
 } from '@/actions/task-groups';
+import { TASK_FREQUENCY_OPTIONS, type TaskFrequency } from '@/lib/task-validation';
 import { cn } from '@/lib/utils';
 import {
   Calendar as CalendarIcon,
@@ -57,12 +58,14 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [supervisorUserId, setSupervisorUserId] = useState(currentUser?.id ?? '');
-  const [listType, setListType] = useState<'one_time' | 'permanent'>('one_time');
+  const [listType, setListType] = useState<TaskFrequency>('one_time');
   const [dueDate, setDueDate] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [createdTaskDefaults, setCreatedTaskDefaults] = useState<{
     assignedUserId: string;
     frequency: string;
     deadline: string;
+    startDate?: string;
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -88,11 +91,14 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     }
   }
 
+  const isDateRange = listType === 'date_range';
+
   function resetCreateForm() {
     setSelectedColor(DEFAULT_COLOR);
     setSupervisorUserId(currentUser?.id ?? '');
     setListType('one_time');
     setDueDate('');
+    setStartDate('');
   }
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -110,6 +116,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
       assignedUserId: supervisorUserId,
       frequency: listType,
       deadline: dueDate,
+      startDate: isDateRange ? startDate : undefined,
     };
     const result = await createTaskGroup(formData);
     if (!result?.success && result?.error) {
@@ -258,7 +265,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-type">
                     <RefreshCw className="w-3 h-3" />
@@ -268,33 +275,66 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                     id="group-type"
                     name="listType"
                     value={listType}
-                    onChange={(e) => {
-                      const nextType = e.target.value as 'one_time' | 'permanent';
-                      setListType(nextType);
-                      if (nextType === 'permanent') setDueDate('');
-                    }}
+                    onChange={(e) => setListType(e.target.value as TaskFrequency)}
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                   >
-                    <option value="one_time">Una vez</option>
-                    <option value="permanent">Frecuente / permanente</option>
+                    {TASK_FREQUENCY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
-                    <CalendarIcon className="w-3 h-3" />
-                    Vencimiento
-                  </label>
-                  <input
-                    id="group-due-date"
-                    name="dueDate"
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                    required={listType === 'one_time'}
-                    disabled={listType === 'permanent'}
-                  />
-                </div>
+                {isDateRange ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-start-date">
+                        <CalendarIcon className="w-3 h-3" />
+                        Desde
+                      </label>
+                      <input
+                        id="group-start-date"
+                        name="startDate"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
+                        <CalendarIcon className="w-3 h-3" />
+                        Hasta
+                      </label>
+                      <input
+                        id="group-due-date"
+                        name="dueDate"
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        required
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-due-date">
+                      <CalendarIcon className="w-3 h-3" />
+                      Vencimiento
+                    </label>
+                    <input
+                      id="group-due-date"
+                      name="dueDate"
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      required
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600" htmlFor="group-description">
@@ -569,6 +609,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
           defaultAssignedUserId={createdTaskDefaults?.assignedUserId}
           defaultFrequency={createdTaskDefaults?.frequency}
           defaultDeadline={createdTaskDefaults?.deadline}
+          defaultStartDate={createdTaskDefaults?.startDate}
           open={showTaskDialog}
           onOpenChange={(next) => {
             setShowTaskDialog(next);

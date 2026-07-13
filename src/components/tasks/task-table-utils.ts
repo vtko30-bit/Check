@@ -12,6 +12,7 @@ export const frequencyLabels: Record<string, string> = {
   weekly_5: 'Viernes',
   weekly_6: 'Sábados',
   monday: 'Lunes',
+  permanent: 'Frecuente / permanente',
   monthly: 'Mensual',
   date_range: 'Rango de fechas',
 };

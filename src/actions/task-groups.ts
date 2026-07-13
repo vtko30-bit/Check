@@ -6,6 +6,7 @@ import { TaskGroup } from '@/types';
 import { auth } from '@/auth';
 import { z } from 'zod';
 import { withPgTransaction } from '@/lib/db-transaction';
+import { TASK_FREQUENCIES } from '@/lib/task-validation';
 
 function mapTaskGroup(row: QueryResultRow): TaskGroup {
   const r = row as Record<string, unknown>;
@@ -84,7 +85,7 @@ const groupSchema = z.object({
   description: z.string().max(1000).optional(),
   color: z.string().max(20).optional().nullable(),
   supervisorUserId: z.string().uuid().optional().nullable(),
-  listType: z.enum(['one_time', 'permanent']).default('one_time'),
+  listType: z.enum(TASK_FREQUENCIES).default('one_time'),
   dueDate: z.string().optional().nullable(),
 });
 
@@ -131,8 +132,8 @@ export async function createTaskGroup(formData: FormData) {
       return { success: false, error: 'Ya existe una lista con ese nombre.' };
     }
 
-    if (listType === 'one_time' && !dueDate) {
-      return { success: false, error: 'La fecha de vencimiento es obligatoria para listas de uso único.' };
+    if (!dueDate) {
+      return { success: false, error: 'La fecha de vencimiento es obligatoria.' };
     }
 
     // Pequeña ayuda visual: color por defecto (verde)
@@ -152,7 +153,7 @@ export async function createTaskGroup(formData: FormData) {
         list_type,
         due_date
       )
-      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id}, ${supervisorUserId || null}, ${listType}, ${listType === 'one_time' ? dueDate : null})
+      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id}, ${supervisorUserId || null}, ${listType}, ${dueDate})
       RETURNING id
     `;
 

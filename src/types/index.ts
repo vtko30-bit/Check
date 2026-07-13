@@ -1,3 +1,5 @@
+import type { TaskFrequency } from '@/lib/task-validation';
+
 export type UserRole = 'admin' | 'editor' | 'viewer';
 
 export interface User {
@@ -36,7 +38,8 @@ export interface Task {
   groupId?: string | null;
 }
 
-export type TaskGroupType = 'one_time' | 'permanent';
+/** Frecuencia de la lista; `permanent` es valor legacy en BD. */
+export type TaskGroupType = TaskFrequency | 'permanent';
 
 export interface TaskGroup {
   id: string;
