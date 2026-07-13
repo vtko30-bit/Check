@@ -238,3 +238,33 @@ export async function deleteTaskGroup(id: string) {
   }
 }
 
+export async function bulkDeleteTaskGroups(groupIds: string[]) {
+  const session = await auth();
+  const user = session?.user as { role?: string } | undefined;
+
+  if (user?.role !== 'admin' && user?.role !== 'editor') {
+    return { success: false, error: 'No autorizado.' };
+  }
+
+  if (groupIds.length === 0) {
+    return { success: false, error: 'No hay listas seleccionadas.' };
+  }
+
+  try {
+    await withPgTransaction(async (query) => {
+      for (const id of groupIds) {
+        await query('UPDATE tasks SET group_id = NULL WHERE group_id = $1', [id]);
+        await query('DELETE FROM task_groups WHERE id = $1', [id]);
+      }
+    });
+
+    revalidatePath('/groups');
+    revalidatePath('/');
+    revalidatePath('/calendar');
+    return { success: true, processed: groupIds.length };
+  } catch (error) {
+    console.error('Error bulk deleting task groups:', error);
+    return { success: false, error: 'No se pudieron eliminar las listas.' };
+  }
+}
+

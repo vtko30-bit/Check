@@ -4,9 +4,24 @@ import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { TaskGroup, User } from '@/types';
-import { createTaskGroup, deleteTaskGroup, updateTaskGroup } from '@/actions/task-groups';
+import {
+  bulkDeleteTaskGroups,
+  createTaskGroup,
+  deleteTaskGroup,
+  updateTaskGroup,
+} from '@/actions/task-groups';
 import { cn } from '@/lib/utils';
-import { Calendar as CalendarIcon, FolderKanban, Plus, Trash2, User as UserIcon, RefreshCw } from 'lucide-react';
+import {
+  Calendar as CalendarIcon,
+  CheckSquare,
+  FolderKanban,
+  Plus,
+  Square,
+  Trash2,
+  User as UserIcon,
+  RefreshCw,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,6 +64,29 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     frequency: string;
     deadline: string;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const selectableGroups = groups.filter((g) => g.id !== editingId);
+  const isAllSelected =
+    selectableGroups.length > 0 && selectedIds.size === selectableGroups.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < selectableGroups.length;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableGroups.map((g) => g.id)));
+    }
+  }
 
   function resetCreateForm() {
     setSelectedColor(DEFAULT_COLOR);
@@ -94,7 +132,35 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     if (!confirm('¿Eliminar este grupo? Sus tareas volverán a la lista principal.')) return;
     const result = await deleteTaskGroup(id);
     if (!result?.success && result?.error) {
-      alert(result.error);
+      toast.error(result.error);
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (!canManage) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `¿Eliminar ${ids.length} lista${ids.length !== 1 ? 's' : ''}? Sus tareas volverán a la lista principal.`
+      )
+    ) {
+      return;
+    }
+
+    const result = await bulkDeleteTaskGroups(ids);
+    if (result?.success) {
+      const count = result.processed ?? ids.length;
+      setSelectedIds(new Set());
+      toast.success(`${count} lista${count !== 1 ? 's' : ''} eliminada${count !== 1 ? 's' : ''}`);
+    } else if (result?.error) {
+      toast.error(result.error);
     }
   }
 
@@ -285,10 +351,60 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
       )}
 
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
-          <FolderKanban className="w-4 h-4 text-primary" />
-          Listas de Tareas
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <FolderKanban className="w-4 h-4 text-primary" />
+            Listas de Tareas
+            {groups.length > 0 && (
+              <span className="text-xs font-normal text-slate-500">({groups.length})</span>
+            )}
+          </h2>
+          {groups.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-primary px-2 py-1 rounded-md hover:bg-slate-50 transition-colors"
+              aria-label={isAllSelected ? 'Quitar selección de todas' : 'Seleccionar todas las listas'}
+            >
+              {isAllSelected ? (
+                <CheckSquare className="w-4 h-4 text-primary" />
+              ) : isSomeSelected ? (
+                <div className="w-4 h-4 bg-primary/20 rounded-sm flex items-center justify-center">
+                  <div className="w-2 h-0.5 bg-primary rounded-full" />
+                </div>
+              ) : (
+                <Square className="w-4 h-4 text-slate-400" />
+              )}
+              <span>{isAllSelected ? 'Quitar selección' : 'Seleccionar todas'}</span>
+            </button>
+          )}
+        </div>
+
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+            <span className="text-xs font-medium text-slate-700">
+              {selectedIds.size} seleccionada{selectedIds.size !== 1 ? 's' : ''}
+            </span>
+            {canManage && (
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Eliminar seleccionadas
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1"
+            >
+              Limpiar
+            </button>
+          </div>
+        )}
+
         {groups.length === 0 ? (
           <p className="text-xs text-slate-500">
             Aún no tienes grupos. Crea uno para agrupar tareas por proyecto, área o checklist.
@@ -297,14 +413,36 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {groups.map((group) => {
               const isEditing = editingId === group.id;
+              const isSelected = selectedIds.has(group.id);
               return (
                 <div
                   key={group.id}
-                  className="px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors space-y-2"
+                  className={cn(
+                    'px-3 py-2 rounded-lg border bg-slate-50 hover:bg-slate-100 transition-colors space-y-2',
+                    isSelected
+                      ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                      : 'border-slate-200'
+                  )}
                 >
                   {!isEditing ? (
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(group.id)}
+                          className="p-1 rounded hover:bg-slate-200/80 transition-colors shrink-0"
+                          aria-label={
+                            isSelected
+                              ? `Quitar selección de ${group.name}`
+                              : `Seleccionar ${group.name}`
+                          }
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-primary" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
                         <span
                           className={cn(
                             'w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold text-white',
