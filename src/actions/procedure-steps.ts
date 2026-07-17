@@ -46,9 +46,16 @@ export async function toggleProcedureStep(stepId: string) {
 
   try {
     const { rows } = await sql`
-      SELECT id, group_id, assigned_user_id, is_completed
-      FROM procedure_steps
-      WHERE id = ${stepId}
+      SELECT
+        ps.id,
+        ps.group_id,
+        ps.assigned_user_id,
+        ps.is_completed,
+        g.is_template,
+        g.run_status
+      FROM procedure_steps ps
+      JOIN task_groups g ON g.id = ps.group_id
+      WHERE ps.id = ${stepId}
       LIMIT 1
     `;
     if (!rows.length) {
@@ -56,6 +63,16 @@ export async function toggleProcedureStep(stepId: string) {
     }
 
     const step = rows[0];
+    if (step.is_template === true) {
+      return {
+        success: false,
+        error: 'Los pasos de la plantilla no se marcan aquí. Inicia una ejecución.',
+      };
+    }
+    if (step.run_status === 'completed') {
+      return { success: false, error: 'Esta ejecución ya está cerrada.' };
+    }
+
     const perm = getToggleProcedureStepPermission(
       { id: user.id, role: user.role },
       step.assigned_user_id as string,
@@ -115,10 +132,16 @@ export async function addProcedureStep(data: {
 
   try {
     const { rows: groupRows } = await sql`
-      SELECT id, kind FROM task_groups WHERE id = ${parsed.data.groupId} LIMIT 1
+      SELECT id, kind, is_template FROM task_groups WHERE id = ${parsed.data.groupId} LIMIT 1
     `;
     if (!groupRows.length || groupRows[0].kind !== 'procedure') {
       return { success: false, error: 'Procedimiento no encontrado.' };
+    }
+    if (groupRows[0].is_template !== true) {
+      return {
+        success: false,
+        error: 'Solo se pueden añadir pasos en la plantilla, no en una ejecución.',
+      };
     }
 
     const { rows: maxRows } = await sql`
@@ -153,10 +176,16 @@ export async function completeProcedure(groupId: string) {
 
   try {
     const { rows: groupRows } = await sql`
-      SELECT id, kind FROM task_groups WHERE id = ${groupId} LIMIT 1
+      SELECT id, kind, is_template FROM task_groups WHERE id = ${groupId} LIMIT 1
     `;
     if (!groupRows.length || groupRows[0].kind !== 'procedure') {
       return { success: false, error: 'Procedimiento no encontrado.' };
+    }
+    if (groupRows[0].is_template === true) {
+      return {
+        success: false,
+        error: 'Completa una ejecución, no la plantilla.',
+      };
     }
 
     const { rows: pending } = await sql`
@@ -173,12 +202,20 @@ export async function completeProcedure(groupId: string) {
 
     await sql`
       UPDATE task_groups
-      SET last_completed_at = NOW(), last_completed_by = ${user.id}
+      SET last_completed_at = NOW(),
+          last_completed_by = ${user.id},
+          run_status = 'completed'
       WHERE id = ${groupId}
     `;
 
+    const { rows: meta } = await sql`
+      SELECT template_id FROM task_groups WHERE id = ${groupId} LIMIT 1
+    `;
     revalidatePath(`/groups/${groupId}`);
     revalidatePath('/groups');
+    if (meta[0]?.template_id) {
+      revalidatePath(`/groups/${meta[0].template_id}`);
+    }
     return { success: true };
   } catch (error) {
     console.error('Error completing procedure:', error);
@@ -194,10 +231,16 @@ export async function resetProcedureSteps(groupId: string) {
 
   try {
     const { rows: groupRows } = await sql`
-      SELECT id, kind FROM task_groups WHERE id = ${groupId} LIMIT 1
+      SELECT id, kind, is_template, template_id FROM task_groups WHERE id = ${groupId} LIMIT 1
     `;
     if (!groupRows.length || groupRows[0].kind !== 'procedure') {
       return { success: false, error: 'Procedimiento no encontrado.' };
+    }
+    if (groupRows[0].is_template === true) {
+      return {
+        success: false,
+        error: 'Reinicia una ejecución, no la plantilla.',
+      };
     }
 
     await sql`
@@ -205,9 +248,16 @@ export async function resetProcedureSteps(groupId: string) {
       SET is_completed = FALSE, completed_at = NULL, completed_by = NULL
       WHERE group_id = ${groupId}
     `;
+    await sql`
+      UPDATE task_groups
+      SET run_status = 'open', last_completed_at = NULL, last_completed_by = NULL
+      WHERE id = ${groupId}
+    `;
 
     revalidatePath(`/groups/${groupId}`);
     revalidatePath('/groups');
+    const templateId = groupRows[0].template_id as string | null;
+    if (templateId) revalidatePath(`/groups/${templateId}`);
     return { success: true };
   } catch (error) {
     console.error('Error resetting procedure steps:', error);

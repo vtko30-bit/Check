@@ -154,7 +154,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
         resetCreateForm();
         setShowCreateDialog(false);
         if (result?.groupId) {
-          toast.success('Procedimiento creado.');
+          toast.success('Plantilla de procedimiento creada.');
           router.push(`/groups/${result.groupId}`);
         }
       }
@@ -674,7 +674,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                             {group.kind === 'procedure' ? (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary shrink-0">
                                 <ListChecks className="w-3 h-3" />
-                                {group.completedStepCount ?? 0}/{group.stepCount ?? 0}
+                                Plantilla · {group.stepCount ?? 0} pasos
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 shrink-0">

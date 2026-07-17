@@ -10,6 +10,8 @@ export const REQUIRED_SCHEMA: ReadonlyArray<{ table: string; column: string }> =
   { table: 'task_groups', column: 'list_type' },
   { table: 'task_groups', column: 'due_date' },
   { table: 'task_groups', column: 'kind' },
+  { table: 'task_groups', column: 'is_template' },
+  { table: 'task_groups', column: 'template_id' },
   { table: 'procedure_steps', column: 'assigned_user_id' },
   { table: 'procedure_steps', column: 'is_completed' },
 ];

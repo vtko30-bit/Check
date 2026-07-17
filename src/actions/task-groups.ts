@@ -28,6 +28,12 @@ function mapTaskGroup(row: QueryResultRow): TaskGroup {
       : null,
     lastCompletedBy: (r.last_completed_by as string) || null,
     kind: (r.kind as TaskGroup['kind']) || 'folder',
+    isTemplate: r.is_template === true,
+    templateId: (r.template_id as string) || null,
+    runDate: r.run_date
+      ? new Date(r.run_date as string).toISOString().split('T')[0]
+      : null,
+    runStatus: (r.run_status as string) || null,
     stepCount:
       r.step_count !== undefined && r.step_count !== null
         ? Number(r.step_count)
@@ -58,6 +64,7 @@ export async function getTaskGroups(): Promise<TaskGroup[]> {
         FROM procedure_steps
         GROUP BY group_id
       ) s ON s.group_id = g.id
+      WHERE g.template_id IS NULL
       ORDER BY g.created_at DESC
     `;
     return rows.map(mapTaskGroup);
@@ -74,7 +81,7 @@ export async function getGroupedTasksCount(): Promise<number> {
     if (!session?.user) return 0;
 
     const { rows } = await sql`
-      SELECT COUNT(*)::int AS count FROM task_groups
+      SELECT COUNT(*)::int AS count FROM task_groups WHERE template_id IS NULL
     `;
     return (rows[0]?.count ?? 0) as number;
   } catch (error) {
@@ -242,7 +249,10 @@ export async function createProcedure(data: {
 
   try {
     const existing = await sql`
-      SELECT id FROM task_groups WHERE LOWER(name) = ${normalizeGroupName(name)} LIMIT 1
+      SELECT id FROM task_groups
+      WHERE LOWER(name) = ${normalizeGroupName(name)}
+        AND template_id IS NULL
+      LIMIT 1
     `;
     if (existing.rows.length > 0) {
       return { success: false, error: 'Ya existe una lista con ese nombre.' };
@@ -255,9 +265,9 @@ export async function createProcedure(data: {
       const groupResult = await query<{ id: string }>(
         `INSERT INTO task_groups (
            name, description, color, created_by, supervisor_user_id,
-           list_type, due_date, kind
+           list_type, due_date, kind, is_template
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', TRUE)
          RETURNING id`,
         [
           name,
@@ -289,6 +299,151 @@ export async function createProcedure(data: {
   } catch (error) {
     console.error('Error creating procedure:', error);
     return { success: false, error: 'No se pudo crear el procedimiento.' };
+  }
+}
+
+function formatRunLabel(templateName: string, runDate: string) {
+  const [y, m, d] = runDate.split('-').map(Number);
+  const label = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('es-CL', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  return `${templateName} · ${label}`;
+}
+
+/** Inicia una ejecución del procedimiento plantilla para una fecha. */
+export async function startProcedureRun(templateId: string, runDate?: string) {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+
+  if (!user?.id) {
+    return { success: false, error: 'No autenticado.' };
+  }
+
+  const date =
+    runDate && /^\d{4}-\d{2}-\d{2}$/.test(runDate)
+      ? runDate
+      : new Date().toISOString().split('T')[0];
+
+  try {
+    const { rows: templates } = await sql`
+      SELECT * FROM task_groups
+      WHERE id = ${templateId}
+        AND kind = 'procedure'
+        AND is_template IS TRUE
+      LIMIT 1
+    `;
+    if (!templates.length) {
+      return { success: false, error: 'Plantilla de procedimiento no encontrada.' };
+    }
+    const template = templates[0];
+
+    const { rows: existing } = await sql`
+      SELECT id FROM task_groups
+      WHERE template_id = ${templateId}
+        AND run_date = ${date}
+      LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return {
+        success: true,
+        groupId: existing[0].id as string,
+        alreadyExists: true,
+      };
+    }
+
+    const { rows: templateSteps } = await sql`
+      SELECT title, sort_order, assigned_user_id
+      FROM procedure_steps
+      WHERE group_id = ${templateId}
+      ORDER BY sort_order ASC, created_at ASC
+    `;
+    if (templateSteps.length === 0) {
+      return {
+        success: false,
+        error: 'La plantilla no tiene pasos. Añade pasos antes de iniciar una ejecución.',
+      };
+    }
+
+    const runName = formatRunLabel(template.name as string, date);
+
+    const runId = await withPgTransaction(async (query) => {
+      const runResult = await query<{ id: string }>(
+        `INSERT INTO task_groups (
+           name, description, color, created_by, supervisor_user_id,
+           list_type, due_date, kind, is_template, template_id, run_date, run_status
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', FALSE, $8, $9, 'open')
+         RETURNING id`,
+        [
+          runName,
+          template.description || null,
+          template.color || '#0f766e',
+          user.id,
+          template.supervisor_user_id || null,
+          template.list_type || 'one_time',
+          date,
+          templateId,
+          date,
+        ]
+      );
+      const id = runResult.rows[0]?.id;
+      if (!id) throw new Error('No se pudo crear la ejecución.');
+
+      for (const step of templateSteps) {
+        await query(
+          `INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id, is_completed)
+           VALUES ($1, $2, $3, $4, FALSE)`,
+          [
+            id,
+            step.title,
+            step.sort_order,
+            step.assigned_user_id,
+          ]
+        );
+      }
+      return id;
+    });
+
+    revalidatePath('/groups');
+    revalidatePath(`/groups/${templateId}`);
+    revalidatePath(`/groups/${runId}`);
+    return { success: true, groupId: runId, alreadyExists: false };
+  } catch (error) {
+    console.error('Error starting procedure run:', error);
+    return { success: false, error: 'No se pudo iniciar la ejecución.' };
+  }
+}
+
+/** Historial de ejecuciones de una plantilla. */
+export async function getProcedureRuns(templateId: string): Promise<TaskGroup[]> {
+  try {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    const { rows } = await sql`
+      SELECT
+        g.*,
+        COALESCE(s.step_count, 0)::int AS step_count,
+        COALESCE(s.completed_step_count, 0)::int AS completed_step_count
+      FROM task_groups g
+      LEFT JOIN (
+        SELECT
+          group_id,
+          COUNT(*)::int AS step_count,
+          COUNT(*) FILTER (WHERE is_completed IS TRUE)::int AS completed_step_count
+        FROM procedure_steps
+        GROUP BY group_id
+      ) s ON s.group_id = g.id
+      WHERE g.template_id = ${templateId}
+      ORDER BY g.run_date DESC NULLS LAST, g.created_at DESC
+      LIMIT 50
+    `;
+    return rows.map(mapTaskGroup);
+  } catch (error) {
+    console.error('Error fetching procedure runs:', error);
+    return [];
   }
 }
 
@@ -352,6 +507,8 @@ export async function deleteTaskGroup(id: string) {
 
   try {
     await withPgTransaction(async (query) => {
+      // Ejecuciones hijas de esta plantilla
+      await query('DELETE FROM task_groups WHERE template_id = $1', [id]);
       await query('UPDATE tasks SET group_id = NULL WHERE group_id = $1', [id]);
       await query('DELETE FROM task_groups WHERE id = $1', [id]);
     });
@@ -381,6 +538,7 @@ export async function bulkDeleteTaskGroups(groupIds: string[]) {
   try {
     await withPgTransaction(async (query) => {
       for (const id of groupIds) {
+        await query('DELETE FROM task_groups WHERE template_id = $1', [id]);
         await query('UPDATE tasks SET group_id = NULL WHERE group_id = $1', [id]);
         await query('DELETE FROM task_groups WHERE id = $1', [id]);
       }

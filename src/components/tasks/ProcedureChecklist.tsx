@@ -20,6 +20,8 @@ interface ProcedureChecklistProps {
   users: User[];
   currentUser?: { id: string; role: string };
   canManage: boolean;
+  /** Ejecución ya cerrada: solo lectura. */
+  readOnly?: boolean;
 }
 
 export function ProcedureChecklist({
@@ -28,6 +30,7 @@ export function ProcedureChecklist({
   users,
   currentUser,
   canManage,
+  readOnly = false,
 }: ProcedureChecklistProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [filterMine, setFilterMine] = useState(false);
@@ -54,6 +57,10 @@ export function ProcedureChecklist({
     : 0;
 
   async function handleToggle(step: ProcedureStep) {
+    if (readOnly) {
+      toast.error('Esta ejecución ya está cerrada.');
+      return;
+    }
     if (!currentUser) return;
     if (!canToggleProcedureStep(currentUser, step.assignedUserId)) {
       toast.error('Solo la persona asignada a este paso puede marcarlo.');
@@ -143,7 +150,7 @@ export function ProcedureChecklist({
           >
             {filterMine ? 'Ver todos' : 'Mis pasos'}
           </button>
-          {canManage && (
+          {canManage && !readOnly && (
             <Button
               type="button"
               variant="outline"
@@ -156,16 +163,23 @@ export function ProcedureChecklist({
               Reiniciar
             </Button>
           )}
-          <Button
-            type="button"
-            size="sm"
-            disabled={!allDone || actionPending}
-            onClick={handleComplete}
-            className="gap-1.5"
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Completar procedimiento
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              size="sm"
+              disabled={!allDone || actionPending}
+              onClick={handleComplete}
+              className="gap-1.5"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              Completar procedimiento
+            </Button>
+          )}
+          {readOnly && (
+            <span className="text-xs font-semibold text-emerald-700 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+              Ejecución completada
+            </span>
+          )}
         </div>
       </div>
 
@@ -179,7 +193,8 @@ export function ProcedureChecklist({
         ) : (
           visibleSteps.map((step) => {
             const assignee = userMap.get(step.assignedUserId);
-            const canToggle = canToggleProcedureStep(currentUser, step.assignedUserId);
+            const canToggle =
+              !readOnly && canToggleProcedureStep(currentUser, step.assignedUserId);
             const busy = pendingId === step.id;
 
             return (
@@ -238,7 +253,7 @@ export function ProcedureChecklist({
         )}
       </ul>
 
-      {canManage && (
+      {canManage && !readOnly && (
         <form
           onSubmit={handleAddStep}
           className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 space-y-2"

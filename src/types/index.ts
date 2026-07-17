@@ -67,6 +67,14 @@ export interface TaskGroup {
   lastCompletedAt?: string | null;
   lastCompletedBy?: string | null;
   kind?: TaskGroupKind;
+  /** Plantilla de procedimiento (definición). */
+  isTemplate?: boolean;
+  /** Si es ejecución, apunta a la plantilla. */
+  templateId?: string | null;
+  /** Fecha de la ejecución (YYYY-MM-DD). */
+  runDate?: string | null;
+  /** open | completed */
+  runStatus?: 'open' | 'completed' | string | null;
   /** Solo en listados de procedimientos. */
   stepCount?: number;
   completedStepCount?: number;
