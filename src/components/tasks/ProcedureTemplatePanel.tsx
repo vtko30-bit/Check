@@ -84,7 +84,8 @@ export function ProcedureTemplatePanel({
             </h2>
             <p className="text-xs text-slate-600 mt-1 max-w-xl">
               Crea una copia del procedimiento para una fecha. Los pasos empiezan en cero
-              y cada persona marca solo los suyos.
+              y cada persona marca solo los suyos. El cron diario también inicia
+              automáticamente según la frecuencia de la plantilla.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">

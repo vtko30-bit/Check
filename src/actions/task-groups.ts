@@ -7,6 +7,10 @@ import { auth } from '@/auth';
 import { z } from 'zod';
 import { withPgTransaction } from '@/lib/db-transaction';
 import { TASK_FREQUENCIES } from '@/lib/task-validation';
+import {
+  createProcedureRunFromTemplate,
+  notifyProcedureRunAssignees,
+} from '@/lib/procedure-runs';
 
 function mapTaskGroup(row: QueryResultRow): TaskGroup {
   const r = row as Record<string, unknown>;
@@ -302,16 +306,6 @@ export async function createProcedure(data: {
   }
 }
 
-function formatRunLabel(templateName: string, runDate: string) {
-  const [y, m, d] = runDate.split('-').map(Number);
-  const label = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('es-CL', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-  return `${templateName} · ${label}`;
-}
-
 /** Inicia una ejecución del procedimiento plantilla para una fecha. */
 export async function startProcedureRun(templateId: string, runDate?: string) {
   const session = await auth();
@@ -327,89 +321,27 @@ export async function startProcedureRun(templateId: string, runDate?: string) {
       : new Date().toISOString().split('T')[0];
 
   try {
-    const { rows: templates } = await sql`
-      SELECT * FROM task_groups
-      WHERE id = ${templateId}
-        AND kind = 'procedure'
-        AND is_template IS TRUE
-      LIMIT 1
-    `;
-    if (!templates.length) {
-      return { success: false, error: 'Plantilla de procedimiento no encontrada.' };
-    }
-    const template = templates[0];
-
-    const { rows: existing } = await sql`
-      SELECT id FROM task_groups
-      WHERE template_id = ${templateId}
-        AND run_date = ${date}
-      LIMIT 1
-    `;
-    if (existing.length > 0) {
-      return {
-        success: true,
-        groupId: existing[0].id as string,
-        alreadyExists: true,
-      };
+    const result = await createProcedureRunFromTemplate(templateId, date, user.id);
+    if (!result.success) {
+      return { success: false, error: result.error };
     }
 
-    const { rows: templateSteps } = await sql`
-      SELECT title, sort_order, assigned_user_id
-      FROM procedure_steps
-      WHERE group_id = ${templateId}
-      ORDER BY sort_order ASC, created_at ASC
-    `;
-    if (templateSteps.length === 0) {
-      return {
-        success: false,
-        error: 'La plantilla no tiene pasos. Añade pasos antes de iniciar una ejecución.',
-      };
+    if (result.created) {
+      const { rows: templates } = await sql`
+        SELECT name FROM task_groups WHERE id = ${templateId} LIMIT 1
+      `;
+      const templateName = (templates[0]?.name as string) || 'Procedimiento';
+      await notifyProcedureRunAssignees(result.groupId, templateName, date);
     }
-
-    const runName = formatRunLabel(template.name as string, date);
-
-    const runId = await withPgTransaction(async (query) => {
-      const runResult = await query<{ id: string }>(
-        `INSERT INTO task_groups (
-           name, description, color, created_by, supervisor_user_id,
-           list_type, due_date, kind, is_template, template_id, run_date, run_status
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', FALSE, $8, $9, 'open')
-         RETURNING id`,
-        [
-          runName,
-          template.description || null,
-          template.color || '#0f766e',
-          user.id,
-          template.supervisor_user_id || null,
-          template.list_type || 'one_time',
-          date,
-          templateId,
-          date,
-        ]
-      );
-      const id = runResult.rows[0]?.id;
-      if (!id) throw new Error('No se pudo crear la ejecución.');
-
-      for (const step of templateSteps) {
-        await query(
-          `INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id, is_completed)
-           VALUES ($1, $2, $3, $4, FALSE)`,
-          [
-            id,
-            step.title,
-            step.sort_order,
-            step.assigned_user_id,
-          ]
-        );
-      }
-      return id;
-    });
 
     revalidatePath('/groups');
     revalidatePath(`/groups/${templateId}`);
-    revalidatePath(`/groups/${runId}`);
-    return { success: true, groupId: runId, alreadyExists: false };
+    revalidatePath(`/groups/${result.groupId}`);
+    return {
+      success: true,
+      groupId: result.groupId,
+      alreadyExists: result.alreadyExists,
+    };
   } catch (error) {
     console.error('Error starting procedure run:', error);
     return { success: false, error: 'No se pudo iniciar la ejecución.' };
