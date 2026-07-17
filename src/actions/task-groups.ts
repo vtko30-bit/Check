@@ -27,6 +27,15 @@ function mapTaskGroup(row: QueryResultRow): TaskGroup {
       ? new Date(r.last_completed_at as string).toISOString()
       : null,
     lastCompletedBy: (r.last_completed_by as string) || null,
+    kind: (r.kind as TaskGroup['kind']) || 'folder',
+    stepCount:
+      r.step_count !== undefined && r.step_count !== null
+        ? Number(r.step_count)
+        : undefined,
+    completedStepCount:
+      r.completed_step_count !== undefined && r.completed_step_count !== null
+        ? Number(r.completed_step_count)
+        : undefined,
   };
 }
 
@@ -36,8 +45,20 @@ export async function getTaskGroups(): Promise<TaskGroup[]> {
     if (!session?.user) return [];
 
     const { rows } = await sql`
-      SELECT * FROM task_groups
-      ORDER BY created_at DESC
+      SELECT
+        g.*,
+        COALESCE(s.step_count, 0)::int AS step_count,
+        COALESCE(s.completed_step_count, 0)::int AS completed_step_count
+      FROM task_groups g
+      LEFT JOIN (
+        SELECT
+          group_id,
+          COUNT(*)::int AS step_count,
+          COUNT(*) FILTER (WHERE is_completed IS TRUE)::int AS completed_step_count
+        FROM procedure_steps
+        GROUP BY group_id
+      ) s ON s.group_id = g.id
+      ORDER BY g.created_at DESC
     `;
     return rows.map(mapTaskGroup);
   } catch (error) {
@@ -151,9 +172,10 @@ export async function createTaskGroup(formData: FormData) {
         created_by,
         supervisor_user_id,
         list_type,
-        due_date
+        due_date,
+        kind
       )
-      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id}, ${supervisorUserId || null}, ${listType}, ${dueDate})
+      VALUES (${name}, ${description || null}, ${finalColor}, ${user.id}, ${supervisorUserId || null}, ${listType}, ${dueDate}, 'folder')
       RETURNING id
     `;
 
@@ -162,6 +184,111 @@ export async function createTaskGroup(formData: FormData) {
   } catch (error) {
     console.error('Error creating task group:', error);
     return { success: false, error: 'No se pudo crear el grupo. Intenta de nuevo.' };
+  }
+}
+
+const procedureStepInputSchema = z.object({
+  title: z.string().min(1).max(500),
+  assignedUserId: z.string().uuid(),
+});
+
+const createProcedureSchema = groupSchema.extend({
+  steps: z
+    .array(procedureStepInputSchema)
+    .min(1, 'Añade al menos un paso al procedimiento.'),
+});
+
+/** Crea un procedimiento (checklist) con pasos asignados. */
+export async function createProcedure(data: {
+  name: string;
+  description?: string;
+  color?: string | null;
+  supervisorUserId?: string | null;
+  listType?: string;
+  dueDate?: string | null;
+  steps: { title: string; assignedUserId: string }[];
+}) {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+
+  if (!user?.id) {
+    return { success: false, error: 'No autenticado.' };
+  }
+  if (user.role !== 'admin' && user.role !== 'editor') {
+    return { success: false, error: 'No autorizado.' };
+  }
+
+  const parsed = createProcedureSchema.safeParse({
+    name: data.name,
+    description: data.description ?? '',
+    color: data.color ?? '',
+    supervisorUserId: data.supervisorUserId || null,
+    listType: data.listType || 'one_time',
+    dueDate: data.dueDate || null,
+    steps: data.steps,
+  });
+
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return { success: false, error: first?.message ?? 'Datos inválidos' };
+  }
+
+  const { name, description, color, supervisorUserId, listType, dueDate, steps } =
+    parsed.data;
+
+  if (!dueDate) {
+    return { success: false, error: 'La fecha de vencimiento es obligatoria.' };
+  }
+
+  try {
+    const existing = await sql`
+      SELECT id FROM task_groups WHERE LOWER(name) = ${normalizeGroupName(name)} LIMIT 1
+    `;
+    if (existing.rows.length > 0) {
+      return { success: false, error: 'Ya existe una lista con ese nombre.' };
+    }
+
+    const finalColor =
+      typeof color === 'string' && color.trim().length > 0 ? color.trim() : '#0f766e';
+
+    const groupId = await withPgTransaction(async (query) => {
+      const groupResult = await query<{ id: string }>(
+        `INSERT INTO task_groups (
+           name, description, color, created_by, supervisor_user_id,
+           list_type, due_date, kind
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure')
+         RETURNING id`,
+        [
+          name,
+          description || null,
+          finalColor,
+          user.id,
+          supervisorUserId || null,
+          listType,
+          dueDate,
+        ]
+      );
+      const id = groupResult.rows[0]?.id;
+      if (!id) throw new Error('No se pudo crear el procedimiento.');
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        await query(
+          `INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id)
+           VALUES ($1, $2, $3, $4)`,
+          [id, step.title.trim(), i, step.assignedUserId]
+        );
+      }
+      return id;
+    });
+
+    revalidatePath('/groups');
+    revalidatePath(`/groups/${groupId}`);
+    return { success: true, groupId };
+  } catch (error) {
+    console.error('Error creating procedure:', error);
+    return { success: false, error: 'No se pudo crear el procedimiento.' };
   }
 }
 

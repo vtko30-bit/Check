@@ -41,6 +41,20 @@ export interface Task {
 /** Frecuencia de la lista; `permanent` es valor legacy en BD. */
 export type TaskGroupType = TaskFrequency | 'permanent';
 
+/** Carpeta/proyecto (Kanban) o procedimiento operativo (checklist). */
+export type TaskGroupKind = 'folder' | 'procedure';
+
+export interface ProcedureStep {
+  id: string;
+  groupId: string;
+  title: string;
+  sortOrder: number;
+  assignedUserId: string;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  completedBy?: string | null;
+}
+
 export interface TaskGroup {
   id: string;
   name: string;
@@ -52,6 +66,10 @@ export interface TaskGroup {
   dueDate?: string | null;
   lastCompletedAt?: string | null;
   lastCompletedBy?: string | null;
+  kind?: TaskGroupKind;
+  /** Solo en listados de procedimientos. */
+  stepCount?: number;
+  completedStepCount?: number;
 }
 
 export interface Notification {

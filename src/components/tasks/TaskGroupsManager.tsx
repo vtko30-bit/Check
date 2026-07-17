@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { TaskGroup, User } from '@/types';
 import {
   bulkDeleteTaskGroups,
+  createProcedure,
   createTaskGroup,
   deleteTaskGroup,
   updateTaskGroup,
@@ -16,6 +17,7 @@ import {
   Calendar as CalendarIcon,
   CheckSquare,
   FolderKanban,
+  ListChecks,
   Plus,
   Square,
   Trash2,
@@ -24,6 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
+import type { TaskGroupKind } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -61,6 +64,10 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
   const [listType, setListType] = useState<TaskFrequency>('one_time');
   const [dueDate, setDueDate] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [createKind, setCreateKind] = useState<TaskGroupKind>('procedure');
+  const [procedureSteps, setProcedureSteps] = useState<
+    { title: string; assignedUserId: string }[]
+  >([{ title: '', assignedUserId: currentUser?.id ?? '' }]);
   const [createdTaskDefaults, setCreatedTaskDefaults] = useState<{
     assignedUserId: string;
     frequency: string;
@@ -99,6 +106,8 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     setListType('one_time');
     setDueDate('');
     setStartDate('');
+    setCreateKind('procedure');
+    setProcedureSteps([{ title: '', assignedUserId: currentUser?.id ?? '' }]);
   }
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -112,6 +121,47 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     formData.set('supervisorUserId', supervisorUserId);
     formData.set('listType', listType);
     formData.set('dueDate', dueDate);
+
+    if (createKind === 'procedure') {
+      const steps = procedureSteps
+        .map((s) => ({ title: s.title.trim(), assignedUserId: s.assignedUserId }))
+        .filter((s) => s.title.length > 0);
+      if (steps.length === 0) {
+        setError('Añade al menos un paso con título.');
+        setPending(false);
+        return;
+      }
+      if (steps.some((s) => !s.assignedUserId)) {
+        setError('Cada paso debe tener un responsable.');
+        setPending(false);
+        return;
+      }
+
+      const result = await createProcedure({
+        name: String(formData.get('name') || ''),
+        description: String(formData.get('description') || ''),
+        color: selectedColor,
+        supervisorUserId,
+        listType,
+        dueDate,
+        steps,
+      });
+
+      if (!result?.success && result?.error) {
+        setError(result.error);
+      } else {
+        form.reset();
+        resetCreateForm();
+        setShowCreateDialog(false);
+        if (result?.groupId) {
+          toast.success('Procedimiento creado.');
+          router.push(`/groups/${result.groupId}`);
+        }
+      }
+      setPending(false);
+      return;
+    }
+
     const taskDefaults = {
       assignedUserId: supervisorUserId,
       frequency: listType,
@@ -230,7 +280,35 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
             <DialogHeader>
               <DialogTitle>Nueva lista</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-3">
+            <form onSubmit={handleCreate} className="space-y-3 max-h-[80vh] overflow-y-auto pr-1">
+              <div className="flex gap-1 p-1 rounded-lg bg-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCreateKind('procedure')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-md transition-colors',
+                    createKind === 'procedure'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  <ListChecks className="w-3.5 h-3.5" />
+                  Procedimiento
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateKind('folder')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-md transition-colors',
+                    createKind === 'folder'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  <FolderKanban className="w-3.5 h-3.5" />
+                  Carpeta / proyecto
+                </button>
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600" htmlFor="group-name">
                   Nombre
@@ -241,13 +319,17 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                   required
                   maxLength={255}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  placeholder="Ej: Auditorías mensuales, Inventario, Turno Noche..."
+                  placeholder={
+                    createKind === 'procedure'
+                      ? 'Ej: Revisar cocina, Procedimiento de limpieza...'
+                      : 'Ej: Auditorías mensuales, Inventario...'
+                  }
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600 flex items-center gap-1" htmlFor="group-supervisor">
                   <UserIcon className="w-3 h-3" />
-                  Asignar a
+                  {createKind === 'procedure' ? 'Supervisor' : 'Asignar a'}
                 </label>
                 <select
                   id="group-supervisor"
@@ -345,9 +427,92 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                   name="description"
                   rows={2}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  placeholder="Breve descripción del tipo de tareas que vivirán en este grupo."
+                  placeholder={
+                    createKind === 'procedure'
+                      ? 'Ej: Checklist de cierre de cocina al final del turno.'
+                      : 'Breve descripción del tipo de tareas que vivirán en este grupo.'
+                  }
                 />
               </div>
+
+              {createKind === 'procedure' && (
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                      <ListChecks className="w-3.5 h-3.5" />
+                      Pasos del procedimiento
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setProcedureSteps((prev) => [
+                          ...prev,
+                          { title: '', assignedUserId: supervisorUserId || currentUser?.id || '' },
+                        ])
+                      }
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      + Añadir paso
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Cada paso tiene un responsable; solo esa persona podrá marcarlo.
+                  </p>
+                  <div className="space-y-2">
+                    {procedureSteps.map((step, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-1.5"
+                      >
+                        <input
+                          value={step.title}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setProcedureSteps((prev) =>
+                              prev.map((s, i) => (i === index ? { ...s, title: value } : s))
+                            );
+                          }}
+                          placeholder={`Paso ${index + 1}`}
+                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-white"
+                          maxLength={500}
+                        />
+                        <select
+                          value={step.assignedUserId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setProcedureSteps((prev) =>
+                              prev.map((s, i) =>
+                                i === index ? { ...s, assignedUserId: value } : s
+                              )
+                            );
+                          }}
+                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-white"
+                          required
+                        >
+                          <option value="">Responsable...</option>
+                          {users.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={procedureSteps.length <= 1}
+                          onClick={() =>
+                            setProcedureSteps((prev) => prev.filter((_, i) => i !== index))
+                          }
+                          className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30"
+                          aria-label="Eliminar paso"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <span className="text-xs font-medium text-slate-600">
                   Color del grupo
@@ -382,7 +547,11 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                 </Button>
                 <Button type="submit" disabled={pending} className="gap-2">
                   <Plus className="w-3 h-3" />
-                  {pending ? 'Creando...' : 'Crear lista'}
+                  {pending
+                    ? 'Creando...'
+                    : createKind === 'procedure'
+                      ? 'Crear procedimiento'
+                      : 'Crear lista'}
                 </Button>
               </DialogFooter>
             </form>
@@ -501,11 +670,24 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                           >
                             {group.name}
                           </Link>
-                          {group.description && (
-                            <span className="text-[11px] text-slate-500 truncate">
-                              {group.description}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {group.kind === 'procedure' ? (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary shrink-0">
+                                <ListChecks className="w-3 h-3" />
+                                {group.completedStepCount ?? 0}/{group.stepCount ?? 0}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 shrink-0">
+                                <FolderKanban className="w-3 h-3" />
+                                Carpeta
+                              </span>
+                            )}
+                            {group.description && (
+                              <span className="text-[11px] text-slate-500 truncate">
+                                {group.description}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {canManage && (

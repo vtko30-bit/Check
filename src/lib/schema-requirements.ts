@@ -9,6 +9,9 @@ export const REQUIRED_SCHEMA: ReadonlyArray<{ table: string; column: string }> =
   { table: 'task_groups', column: 'supervisor_user_id' },
   { table: 'task_groups', column: 'list_type' },
   { table: 'task_groups', column: 'due_date' },
+  { table: 'task_groups', column: 'kind' },
+  { table: 'procedure_steps', column: 'assigned_user_id' },
+  { table: 'procedure_steps', column: 'is_completed' },
 ];
 
 export const REQUIRED_TABLES = [
@@ -18,6 +21,7 @@ export const REQUIRED_TABLES = [
   'notifications',
   'password_reset_tokens',
   'settings',
+  'procedure_steps',
 ] as const;
 
 export const SCHEMA_OUTDATED_MESSAGE =
