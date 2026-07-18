@@ -3,14 +3,17 @@
 import { useMemo, useState } from 'react';
 import { ProcedureStep, User } from '@/types';
 import {
-  addProcedureStep,
   completeProcedure,
   resetProcedureSteps,
   toggleProcedureStep,
 } from '@/actions/procedure-steps';
-import { canToggleProcedureStep } from '@/lib/procedure-permissions';
+import {
+  canCompleteWithStrictOrder,
+  canToggleProcedureStep,
+  normalizeAssigneeIds,
+} from '@/lib/procedure-permissions';
 import { cn } from '@/lib/utils';
-import { CheckSquare, ListChecks, Plus, RotateCcw, Square } from 'lucide-react';
+import { CheckSquare, ListChecks, RotateCcw, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +25,13 @@ interface ProcedureChecklistProps {
   canManage: boolean;
   /** Ejecución ya cerrada: solo lectura. */
   readOnly?: boolean;
+  requireStrictOrder?: boolean;
+}
+
+function stepAssigneeIds(step: ProcedureStep): string[] {
+  return normalizeAssigneeIds(
+    step.assignedUserIds?.length ? step.assignedUserIds : step.assignedUserId
+  );
 }
 
 export function ProcedureChecklist({
@@ -31,12 +41,10 @@ export function ProcedureChecklist({
   currentUser,
   canManage,
   readOnly = false,
+  requireStrictOrder = false,
 }: ProcedureChecklistProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [filterMine, setFilterMine] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newAssignee, setNewAssignee] = useState(currentUser?.id ?? '');
-  const [adding, setAdding] = useState(false);
   const [actionPending, setActionPending] = useState(false);
 
   const userMap = useMemo(
@@ -44,17 +52,30 @@ export function ProcedureChecklist({
     [users]
   );
 
+  const sortedSteps = useMemo(
+    () => [...steps].sort((a, b) => a.sortOrder - b.sortOrder),
+    [steps]
+  );
+
   const visibleSteps = filterMine && currentUser
-    ? steps.filter((s) => s.assignedUserId === currentUser.id)
-    : steps;
+    ? sortedSteps.filter((s) => stepAssigneeIds(s).includes(currentUser.id))
+    : sortedSteps;
 
   const completedCount = steps.filter((s) => s.isCompleted).length;
   const total = steps.length;
   const allDone = total > 0 && completedCount === total;
 
   const myPending = currentUser
-    ? steps.filter((s) => s.assignedUserId === currentUser.id && !s.isCompleted).length
+    ? steps.filter(
+        (s) => stepAssigneeIds(s).includes(currentUser.id) && !s.isCompleted
+      ).length
     : 0;
+
+  function previousCompleted(step: ProcedureStep): boolean {
+    return sortedSteps
+      .filter((s) => s.sortOrder < step.sortOrder)
+      .every((s) => s.isCompleted);
+  }
 
   async function handleToggle(step: ProcedureStep) {
     if (readOnly) {
@@ -62,8 +83,16 @@ export function ProcedureChecklist({
       return;
     }
     if (!currentUser) return;
-    if (!canToggleProcedureStep(currentUser, step.assignedUserId)) {
-      toast.error('Solo la persona asignada a este paso puede marcarlo.');
+    const assignees = stepAssigneeIds(step);
+    if (!canToggleProcedureStep(currentUser, assignees)) {
+      toast.error('Solo las personas asignadas a este paso pueden marcarlo.');
+      return;
+    }
+    if (
+      !step.isCompleted &&
+      !canCompleteWithStrictOrder(requireStrictOrder, previousCompleted(step))
+    ) {
+      toast.error('Debes completar los pasos anteriores primero (orden estricto).');
       return;
     }
     setPendingId(step.id);
@@ -97,24 +126,6 @@ export function ProcedureChecklist({
     setActionPending(false);
   }
 
-  async function handleAddStep(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newTitle.trim() || !newAssignee) return;
-    setAdding(true);
-    const result = await addProcedureStep({
-      groupId,
-      title: newTitle.trim(),
-      assignedUserId: newAssignee,
-    });
-    if (result?.success) {
-      setNewTitle('');
-      toast.success('Paso añadido.');
-    } else if (result?.error) {
-      toast.error(result.error);
-    }
-    setAdding(false);
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -133,6 +144,7 @@ export function ProcedureChecklist({
             {currentUser && (
               <p className="text-[11px] text-slate-500 mt-1">
                 Tus pendientes: {myPending}
+                {requireStrictOrder ? ' · Orden estricto activo' : ''}
               </p>
             )}
           </div>
@@ -192,9 +204,24 @@ export function ProcedureChecklist({
           </li>
         ) : (
           visibleSteps.map((step) => {
-            const assignee = userMap.get(step.assignedUserId);
+            const assignees = stepAssigneeIds(step);
+            const names = assignees
+              .map((id) => userMap.get(id)?.name)
+              .filter(Boolean)
+              .join(', ');
+            const isMine = currentUser
+              ? assignees.includes(currentUser.id)
+              : false;
+            const blockedByOrder =
+              !step.isCompleted &&
+              !canCompleteWithStrictOrder(
+                requireStrictOrder,
+                previousCompleted(step)
+              );
             const canToggle =
-              !readOnly && canToggleProcedureStep(currentUser, step.assignedUserId);
+              !readOnly &&
+              canToggleProcedureStep(currentUser, assignees) &&
+              !blockedByOrder;
             const busy = pendingId === step.id;
 
             return (
@@ -222,9 +249,11 @@ export function ProcedureChecklist({
                       : `Marcar: ${step.title}`
                   }
                   title={
-                    canToggle
-                      ? undefined
-                      : 'Solo la persona asignada puede marcar este paso'
+                    blockedByOrder
+                      ? 'Completa los pasos anteriores primero'
+                      : canToggle
+                        ? undefined
+                        : 'Solo las personas asignadas pueden marcar este paso'
                   }
                 >
                   {step.isCompleted ? (
@@ -243,8 +272,9 @@ export function ProcedureChecklist({
                     {step.title}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    {assignee?.name || 'Sin asignar'}
-                    {currentUser?.id === step.assignedUserId ? ' · Tuyo' : ''}
+                    {names || 'Sin asignar'}
+                    {isMine ? ' · Tuyo' : ''}
+                    {blockedByOrder ? ' · Esperando pasos previos' : ''}
                   </p>
                 </div>
               </li>
@@ -252,45 +282,6 @@ export function ProcedureChecklist({
           })
         )}
       </ul>
-
-      {canManage && !readOnly && (
-        <form
-          onSubmit={handleAddStep}
-          className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 space-y-2"
-        >
-          <p className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-            <Plus className="w-3.5 h-3.5" />
-            Añadir paso
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-2">
-            <input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Ej: Trapear pisos con detergente"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-white"
-              maxLength={500}
-              required
-            />
-            <select
-              value={newAssignee}
-              onChange={(e) => setNewAssignee(e.target.value)}
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-white"
-              required
-            >
-              <option value="">Responsable...</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" disabled={adding} className="gap-1">
-              <Plus className="w-3.5 h-3.5" />
-              {adding ? '...' : 'Añadir'}
-            </Button>
-          </div>
-        </form>
-      )}
     </div>
   );
 }

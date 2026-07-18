@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ProcedureStep, TaskGroup, User } from '@/types';
 import { startProcedureRun } from '@/actions/task-groups';
-import { addProcedureStep } from '@/actions/procedure-steps';
+import {
+  addProcedureStep,
+  setProcedureStrictOrder,
+} from '@/actions/procedure-steps';
+import { normalizeAssigneeIds } from '@/lib/procedure-permissions';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, Circle, ListChecks, Play, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,6 +24,12 @@ interface ProcedureTemplatePanelProps {
   currentUserId?: string;
 }
 
+function stepAssigneeIds(step: ProcedureStep): string[] {
+  return normalizeAssigneeIds(
+    step.assignedUserIds?.length ? step.assignedUserIds : step.assignedUserId
+  );
+}
+
 export function ProcedureTemplatePanel({
   template,
   steps,
@@ -32,8 +42,12 @@ export function ProcedureTemplatePanel({
   const [starting, setStarting] = useState(false);
   const [runDate, setRunDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newTitle, setNewTitle] = useState('');
-  const [newAssignee, setNewAssignee] = useState(currentUserId ?? '');
+  const [newAssignees, setNewAssignees] = useState<string[]>(
+    currentUserId ? [currentUserId] : []
+  );
   const [adding, setAdding] = useState(false);
+  const [strictPending, setStrictPending] = useState(false);
+  const [strictOrder, setStrictOrder] = useState(!!template.requireStrictOrder);
 
   const userName = (id: string) => users.find((u) => u.id === id)?.name || 'Sin asignar';
   const openRuns = runs.filter((r) => r.runStatus !== 'completed');
@@ -55,14 +69,28 @@ export function ProcedureTemplatePanel({
     setStarting(false);
   }
 
+  async function handleToggleStrict(checked: boolean) {
+    setStrictPending(true);
+    const result = await setProcedureStrictOrder(template.id, checked);
+    if (result?.success) {
+      setStrictOrder(checked);
+      toast.success(
+        checked ? 'Orden estricto activado.' : 'Orden estricto desactivado.'
+      );
+    } else if (result?.error) {
+      toast.error(result.error);
+    }
+    setStrictPending(false);
+  }
+
   async function handleAddStep(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTitle.trim() || !newAssignee) return;
+    if (!newTitle.trim() || newAssignees.length === 0) return;
     setAdding(true);
     const result = await addProcedureStep({
       groupId: template.id,
       title: newTitle.trim(),
-      assignedUserId: newAssignee,
+      assignedUserIds: newAssignees,
     });
     if (result?.success) {
       setNewTitle('');
@@ -84,7 +112,7 @@ export function ProcedureTemplatePanel({
             </h2>
             <p className="text-xs text-slate-600 mt-1 max-w-xl">
               Crea una copia del procedimiento para una fecha. Los pasos empiezan en cero
-              y cada persona marca solo los suyos. El cron diario también inicia
+              y cada persona marca los suyos. El cron diario también inicia
               automáticamente según la frecuencia de la plantilla.
             </p>
           </div>
@@ -125,12 +153,29 @@ export function ProcedureTemplatePanel({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <ListChecks className="w-4 h-4 text-primary" />
-          Pasos de la plantilla ({steps.length})
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <ListChecks className="w-4 h-4 text-primary" />
+            Pasos de la plantilla ({steps.length})
+          </h2>
+          {canManage && (
+            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={strictOrder}
+                disabled={strictPending}
+                onChange={(e) => handleToggleStrict(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              Orden estricto
+            </label>
+          )}
+        </div>
         <p className="text-xs text-slate-500">
           Esta es la definición. No se marcan aquí: úsala al iniciar cada ejecución.
+          {strictOrder
+            ? ' Con orden estricto, en la ejecución no se puede saltar un paso.'
+            : ''}
         </p>
         <ul className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
           {steps.length === 0 ? (
@@ -138,19 +183,22 @@ export function ProcedureTemplatePanel({
               Añade al menos un paso para poder iniciar ejecuciones.
             </li>
           ) : (
-            steps.map((step, index) => (
-              <li key={step.id} className="flex items-start gap-3 px-4 py-3">
-                <span className="text-xs font-bold text-slate-400 w-5 shrink-0 mt-0.5">
-                  {index + 1}.
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800">{step.title}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {userName(step.assignedUserId)}
-                  </p>
-                </div>
-              </li>
-            ))
+            steps.map((step, index) => {
+              const ids = stepAssigneeIds(step);
+              return (
+                <li key={step.id} className="flex items-start gap-3 px-4 py-3">
+                  <span className="text-xs font-bold text-slate-400 w-5 shrink-0 mt-0.5">
+                    {index + 1}.
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800">{step.title}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {ids.map(userName).join(', ') || 'Sin asignar'}
+                    </p>
+                  </div>
+                </li>
+              );
+            })
           )}
         </ul>
 
@@ -163,33 +211,47 @@ export function ProcedureTemplatePanel({
               <Plus className="w-3.5 h-3.5" />
               Añadir paso a la plantilla
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-2">
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Ej: Trapear pisos con detergente"
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-white"
-                maxLength={500}
-                required
-              />
-              <select
-                value={newAssignee}
-                onChange={(e) => setNewAssignee(e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-white"
-                required
-              >
-                <option value="">Responsable...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
+            <input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Ej: Trapear pisos con detergente"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-white"
+              maxLength={500}
+              required
+            />
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {users.map((u) => {
+                const checked = newAssignees.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-600"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setNewAssignees((prev) =>
+                          checked
+                            ? prev.filter((id) => id !== u.id)
+                            : [...prev, u.id]
+                        );
+                      }}
+                      className="rounded border-slate-300"
+                    />
                     {u.name}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" disabled={adding} className="gap-1">
-                <Plus className="w-3.5 h-3.5" />
-                {adding ? '...' : 'Añadir'}
-              </Button>
+                  </label>
+                );
+              })}
             </div>
+            <Button
+              type="submit"
+              disabled={adding || newAssignees.length === 0}
+              className="gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {adding ? '...' : 'Añadir'}
+            </Button>
           </form>
         )}
       </section>

@@ -165,3 +165,56 @@ export async function sendPasswordResetEmail(to: string, resetLink: string, user
     if (previewUrl) console.log('Password reset preview:', previewUrl);
   }
 }
+
+/** Aviso de procedimiento (nueva ejecución o pendientes). Best-effort si no hay SMTP. */
+export async function sendProcedureAlertEmails(
+  recipients: { email: string; name?: string }[],
+  subject: string,
+  bodyText: string
+): Promise<number> {
+  const unique = [
+    ...new Map(
+      recipients
+        .filter((r) => r.email?.trim())
+        .map((r) => [r.email.trim().toLowerCase(), r] as const)
+    ).values(),
+  ];
+  if (unique.length === 0) return 0;
+
+  try {
+    const { transporter, isTestAccount } = await createMailTransporter();
+    let sent = 0;
+
+    for (const recipient of unique) {
+      const html = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #0f766e;">Check</h1>
+          <p>Hola${recipient.name ? ` ${escapeHtml(recipient.name)}` : ''},</p>
+          <p>${escapeHtml(bodyText)}</p>
+          <p style="margin-top: 30px; font-size: 12px; color: #666;">
+            Mensaje automático de <strong>Check</strong>.
+          </p>
+        </div>
+      `;
+
+      const info = await transporter.sendMail({
+        from: getFromAddress(),
+        to: recipient.email.trim(),
+        subject: subject.slice(0, 200),
+        html,
+        text: bodyText,
+      });
+
+      if (isTestAccount && process.env.NODE_ENV === 'development') {
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) console.log('Procedure alert preview:', previewUrl);
+      }
+      sent++;
+    }
+
+    return sent;
+  } catch (error) {
+    console.error('sendProcedureAlertEmails skipped:', error);
+    return 0;
+  }
+}

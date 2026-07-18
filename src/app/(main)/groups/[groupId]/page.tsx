@@ -121,8 +121,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       ) : isRun ? (
         <section className="space-y-3">
           <p className="text-xs text-slate-500">
-            Cada persona solo puede marcar los pasos que tiene asignados.
-            Admin y editores pueden marcar cualquiera.
+            Cada persona puede marcar los pasos que tiene asignados (puede haber varios
+            por paso). Admin y editores pueden marcar cualquiera.
+            {group.requireStrictOrder
+              ? ' Esta ejecución exige completar los pasos en orden.'
+              : ''}
           </p>
           <ProcedureChecklist
             groupId={group.id}
@@ -135,6 +138,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
             }
             canManage={canManage}
             readOnly={group.runStatus === 'completed'}
+            requireStrictOrder={!!group.requireStrictOrder}
           />
         </section>
       ) : (

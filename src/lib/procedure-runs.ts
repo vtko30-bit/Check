@@ -2,6 +2,7 @@ import { queryPg } from '@/lib/db-pg';
 import { withPgTransaction } from '@/lib/db-transaction';
 import { insertNotificationsForUsers } from '@/lib/notifications-db';
 import { shouldAutoStartProcedureToday } from '@/lib/procedure-schedule';
+import { sendProcedureAlertEmails } from '@/lib/email';
 
 export type StartRunResult =
   | { success: true; groupId: string; alreadyExists: boolean; created: boolean }
@@ -17,6 +18,14 @@ function formatRunLabel(templateName: string, runDate: string) {
   return `${templateName} · ${label}`;
 }
 
+async function getStepAssigneeIds(stepId: string): Promise<string[]> {
+  const rows = await queryPg<{ user_id: string }>(
+    `SELECT user_id FROM procedure_step_assignees WHERE step_id = $1`,
+    [stepId]
+  );
+  return rows.map((r) => r.user_id);
+}
+
 /** Crea (o reutiliza) una ejecución de plantilla. Uso interno / cron / server action. */
 export async function createProcedureRunFromTemplate(
   templateId: string,
@@ -30,8 +39,9 @@ export async function createProcedureRunFromTemplate(
     color: string | null;
     supervisor_user_id: string | null;
     list_type: string | null;
+    require_strict_order: boolean | null;
   }>(
-    `SELECT id, name, description, color, supervisor_user_id, list_type
+    `SELECT id, name, description, color, supervisor_user_id, list_type, require_strict_order
      FROM task_groups
      WHERE id = $1 AND kind = 'procedure' AND is_template IS TRUE
      LIMIT 1`,
@@ -59,11 +69,12 @@ export async function createProcedureRunFromTemplate(
   }
 
   const templateSteps = await queryPg<{
+    id: string;
     title: string;
     sort_order: number;
     assigned_user_id: string;
   }>(
-    `SELECT title, sort_order, assigned_user_id
+    `SELECT id, title, sort_order, assigned_user_id
      FROM procedure_steps
      WHERE group_id = $1
      ORDER BY sort_order ASC, created_at ASC`,
@@ -74,6 +85,26 @@ export async function createProcedureRunFromTemplate(
     return {
       success: false,
       error: 'La plantilla no tiene pasos. Añade pasos antes de iniciar una ejecución.',
+    };
+  }
+
+  const stepsWithAssignees = await Promise.all(
+    templateSteps.map(async (step) => {
+      const fromJunction = await getStepAssigneeIds(step.id);
+      const assigneeIds =
+        fromJunction.length > 0
+          ? fromJunction
+          : step.assigned_user_id
+            ? [step.assigned_user_id]
+            : [];
+      return { ...step, assigneeIds };
+    })
+  );
+
+  if (stepsWithAssignees.some((s) => s.assigneeIds.length === 0)) {
+    return {
+      success: false,
+      error: 'Todos los pasos de la plantilla deben tener al menos un responsable.',
     };
   }
 
@@ -91,14 +122,16 @@ export async function createProcedureRunFromTemplate(
   }
 
   const runName = formatRunLabel(template.name, runDate);
+  const requireStrict = template.require_strict_order === true;
 
   const runId = await withPgTransaction(async (query) => {
     const runResult = await query<{ id: string }>(
       `INSERT INTO task_groups (
          name, description, color, created_by, supervisor_user_id,
-         list_type, due_date, kind, is_template, template_id, run_date, run_status
+         list_type, due_date, kind, is_template, template_id, run_date, run_status,
+         require_strict_order
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', FALSE, $8, $9, 'open')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', FALSE, $8, $9, 'open', $10)
        RETURNING id`,
       [
         runName,
@@ -110,17 +143,30 @@ export async function createProcedureRunFromTemplate(
         runDate,
         templateId,
         runDate,
+        requireStrict,
       ]
     );
     const id = runResult.rows[0]?.id;
     if (!id) throw new Error('No se pudo crear la ejecución.');
 
-    for (const step of templateSteps) {
-      await query(
+    for (const step of stepsWithAssignees) {
+      const primary = step.assigneeIds[0];
+      const stepResult = await query<{ id: string }>(
         `INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id, is_completed)
-         VALUES ($1, $2, $3, $4, FALSE)`,
-        [id, step.title, step.sort_order, step.assigned_user_id]
+         VALUES ($1, $2, $3, $4, FALSE)
+         RETURNING id`,
+        [id, step.title, step.sort_order, primary]
       );
+      const newStepId = stepResult.rows[0]?.id;
+      if (!newStepId) throw new Error('No se pudo clonar un paso.');
+      for (const userId of step.assigneeIds) {
+        await query(
+          `INSERT INTO procedure_step_assignees (step_id, user_id)
+           VALUES ($1, $2)
+           ON CONFLICT DO NOTHING`,
+          [newStepId, userId]
+        );
+      }
     }
     return id;
   });
@@ -133,36 +179,104 @@ export async function createProcedureRunFromTemplate(
   };
 }
 
+async function resolveAssigneeRecipients(runId: string, onlyPending: boolean) {
+  const fromJunction = await queryPg<{
+    id: string;
+    email: string;
+    name: string | null;
+  }>(
+    onlyPending
+      ? `SELECT DISTINCT u.id, u.email, u.name
+         FROM procedure_step_assignees psa
+         JOIN procedure_steps ps ON ps.id = psa.step_id
+         JOIN users u ON u.id = psa.user_id
+         WHERE ps.group_id = $1
+           AND ps.is_completed IS NOT TRUE
+           AND u.email IS NOT NULL
+           AND TRIM(u.email) <> ''`
+      : `SELECT DISTINCT u.id, u.email, u.name
+         FROM procedure_step_assignees psa
+         JOIN procedure_steps ps ON ps.id = psa.step_id
+         JOIN users u ON u.id = psa.user_id
+         WHERE ps.group_id = $1
+           AND u.email IS NOT NULL
+           AND TRIM(u.email) <> ''`,
+    [runId]
+  );
+
+  if (fromJunction.length > 0) {
+    return fromJunction;
+  }
+
+  return queryPg<{ id: string; email: string; name: string | null }>(
+    onlyPending
+      ? `SELECT DISTINCT u.id, u.email, u.name
+         FROM procedure_steps ps
+         JOIN users u ON u.id = ps.assigned_user_id
+         WHERE ps.group_id = $1
+           AND ps.is_completed IS NOT TRUE
+           AND u.email IS NOT NULL
+           AND TRIM(u.email) <> ''`
+      : `SELECT DISTINCT u.id, u.email, u.name
+         FROM procedure_steps ps
+         JOIN users u ON u.id = ps.assigned_user_id
+         WHERE ps.group_id = $1
+           AND u.email IS NOT NULL
+           AND TRIM(u.email) <> ''`,
+    [runId]
+  );
+}
+
+async function resolveAssigneeUserIds(runId: string, onlyPending: boolean): Promise<string[]> {
+  const fromJunction = await queryPg<{ user_id: string }>(
+    onlyPending
+      ? `SELECT DISTINCT psa.user_id
+         FROM procedure_step_assignees psa
+         JOIN procedure_steps ps ON ps.id = psa.step_id
+         WHERE ps.group_id = $1 AND ps.is_completed IS NOT TRUE`
+      : `SELECT DISTINCT psa.user_id
+         FROM procedure_step_assignees psa
+         JOIN procedure_steps ps ON ps.id = psa.step_id
+         WHERE ps.group_id = $1`,
+    [runId]
+  );
+
+  if (fromJunction.length > 0) {
+    return [...new Set(fromJunction.map((r) => r.user_id).filter(Boolean))];
+  }
+
+  const legacy = await queryPg<{ assigned_user_id: string }>(
+    onlyPending
+      ? `SELECT DISTINCT assigned_user_id
+         FROM procedure_steps
+         WHERE group_id = $1 AND is_completed IS NOT TRUE`
+      : `SELECT DISTINCT assigned_user_id FROM procedure_steps WHERE group_id = $1`,
+    [runId]
+  );
+  return [...new Set(legacy.map((r) => r.assigned_user_id).filter(Boolean))];
+}
+
 export async function notifyProcedureRunAssignees(
   runId: string,
   templateName: string,
   runDate: string
 ): Promise<number> {
-  const assignees = await queryPg<{ assigned_user_id: string }>(
-    `SELECT DISTINCT assigned_user_id
-     FROM procedure_steps
-     WHERE group_id = $1`,
-    [runId]
-  );
-
-  const userIds = [
-    ...new Set(
-      assignees
-        .map((r) => r.assigned_user_id)
-        .filter(Boolean)
-    ),
-  ];
-
+  const userIds = await resolveAssigneeUserIds(runId, false);
   if (userIds.length === 0) return 0;
 
   const [y, m, d] = runDate.split('-').map(Number);
   const dateLabel = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('es-CL');
   const safeName =
     templateName.length > 80 ? `${templateName.slice(0, 77)}...` : templateName;
+  const message = `Nueva ejecución de procedimiento: "${safeName}" (${dateLabel}). Revisa tus pasos asignados.`;
 
-  await insertNotificationsForUsers(
-    userIds,
-    `Nueva ejecución de procedimiento: "${safeName}" (${dateLabel}). Revisa tus pasos asignados.`
+  await insertNotificationsForUsers(userIds, message);
+
+  const recipients = await resolveAssigneeRecipients(runId, false);
+  await sendProcedureAlertEmails(
+    recipients.map((r) => ({ email: r.email, name: r.name || undefined })),
+    `Nueva ejecución: ${safeName}`,
+    message
   );
 
   return userIds.length;
@@ -264,21 +378,19 @@ export async function notifyIncompleteProcedureRuns(today?: string): Promise<{
     let notified = 0;
 
     for (const run of openRuns) {
-      const pending = await queryPg<{ assigned_user_id: string }>(
-        `SELECT DISTINCT assigned_user_id
-         FROM procedure_steps
-         WHERE group_id = $1 AND is_completed IS NOT TRUE`,
-        [run.id]
-      );
+      const userIds = await resolveAssigneeUserIds(run.id, true);
+      if (userIds.length === 0) continue;
 
-      if (pending.length === 0) continue;
-
-      const userIds = [...new Set(pending.map((p) => p.assigned_user_id).filter(Boolean))];
       const safeName = run.name.length > 80 ? `${run.name.slice(0, 77)}...` : run.name;
+      const message = `Procedimiento pendiente: "${safeName}". Aún tienes pasos por completar.`;
 
-      await insertNotificationsForUsers(
-        userIds,
-        `Procedimiento pendiente: "${safeName}". Aún tienes pasos por completar.`
+      await insertNotificationsForUsers(userIds, message);
+
+      const recipients = await resolveAssigneeRecipients(run.id, true);
+      await sendProcedureAlertEmails(
+        recipients.map((r) => ({ email: r.email, name: r.name || undefined })),
+        `Pendiente: ${safeName}`,
+        message
       );
       notified += userIds.length;
     }

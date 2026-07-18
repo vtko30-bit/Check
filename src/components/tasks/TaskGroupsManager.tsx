@@ -65,9 +65,10 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
   const [dueDate, setDueDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [createKind, setCreateKind] = useState<TaskGroupKind>('procedure');
+  const [requireStrictOrder, setRequireStrictOrder] = useState(false);
   const [procedureSteps, setProcedureSteps] = useState<
-    { title: string; assignedUserId: string }[]
-  >([{ title: '', assignedUserId: currentUser?.id ?? '' }]);
+    { title: string; assignedUserIds: string[] }[]
+  >([{ title: '', assignedUserIds: currentUser?.id ? [currentUser.id] : [] }]);
   const [createdTaskDefaults, setCreatedTaskDefaults] = useState<{
     assignedUserId: string;
     frequency: string;
@@ -107,7 +108,10 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
     setDueDate('');
     setStartDate('');
     setCreateKind('procedure');
-    setProcedureSteps([{ title: '', assignedUserId: currentUser?.id ?? '' }]);
+    setRequireStrictOrder(false);
+    setProcedureSteps([
+      { title: '', assignedUserIds: currentUser?.id ? [currentUser.id] : [] },
+    ]);
   }
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -124,15 +128,18 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
 
     if (createKind === 'procedure') {
       const steps = procedureSteps
-        .map((s) => ({ title: s.title.trim(), assignedUserId: s.assignedUserId }))
+        .map((s) => ({
+          title: s.title.trim(),
+          assignedUserIds: s.assignedUserIds,
+        }))
         .filter((s) => s.title.length > 0);
       if (steps.length === 0) {
         setError('Añade al menos un paso con título.');
         setPending(false);
         return;
       }
-      if (steps.some((s) => !s.assignedUserId)) {
-        setError('Cada paso debe tener un responsable.');
+      if (steps.some((s) => s.assignedUserIds.length === 0)) {
+        setError('Cada paso debe tener al menos un responsable.');
         setPending(false);
         return;
       }
@@ -144,6 +151,7 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
         supervisorUserId,
         listType,
         dueDate,
+        requireStrictOrder,
         steps,
       });
 
@@ -447,7 +455,14 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                       onClick={() =>
                         setProcedureSteps((prev) => [
                           ...prev,
-                          { title: '', assignedUserId: supervisorUserId || currentUser?.id || '' },
+                          {
+                            title: '',
+                            assignedUserIds: supervisorUserId
+                              ? [supervisorUserId]
+                              : currentUser?.id
+                                ? [currentUser.id]
+                                : [],
+                          },
                         ])
                       }
                       className="text-[11px] font-medium text-primary hover:underline"
@@ -456,57 +471,81 @@ export function TaskGroupsManager({ groups, canManage, users, currentUser }: Tas
                     </button>
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    Cada paso tiene un responsable; solo esa persona podrá marcarlo.
+                    Cada paso puede tener varios responsables; cualquiera de ellos puede marcarlo.
                   </p>
+                  <label className="flex items-center gap-2 text-[11px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={requireStrictOrder}
+                      onChange={(e) => setRequireStrictOrder(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    Orden estricto (completar pasos en secuencia)
+                  </label>
                   <div className="space-y-2">
                     {procedureSteps.map((step, index) => (
                       <div
                         key={index}
-                        className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-1.5"
+                        className="rounded-md border border-slate-200 bg-white p-2 space-y-1.5"
                       >
-                        <input
-                          value={step.title}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setProcedureSteps((prev) =>
-                              prev.map((s, i) => (i === index ? { ...s, title: value } : s))
-                            );
-                          }}
-                          placeholder={`Paso ${index + 1}`}
-                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-white"
-                          maxLength={500}
-                        />
-                        <select
-                          value={step.assignedUserId}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setProcedureSteps((prev) =>
-                              prev.map((s, i) =>
-                                i === index ? { ...s, assignedUserId: value } : s
+                        <div className="flex gap-1.5">
+                          <input
+                            value={step.title}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setProcedureSteps((prev) =>
+                                prev.map((s, i) =>
+                                  i === index ? { ...s, title: value } : s
+                                )
+                              );
+                            }}
+                            placeholder={`Paso ${index + 1}`}
+                            className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs"
+                            maxLength={500}
+                          />
+                          <button
+                            type="button"
+                            disabled={procedureSteps.length <= 1}
+                            onClick={() =>
+                              setProcedureSteps((prev) =>
+                                prev.filter((_, i) => i !== index)
                               )
+                            }
+                            className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 shrink-0"
+                            aria-label="Eliminar paso"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          {users.map((u) => {
+                            const checked = step.assignedUserIds.includes(u.id);
+                            return (
+                              <label
+                                key={u.id}
+                                className="inline-flex items-center gap-1 text-[10px] text-slate-600"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setProcedureSteps((prev) =>
+                                      prev.map((s, i) => {
+                                        if (i !== index) return s;
+                                        const ids = checked
+                                          ? s.assignedUserIds.filter((id) => id !== u.id)
+                                          : [...s.assignedUserIds, u.id];
+                                        return { ...s, assignedUserIds: ids };
+                                      })
+                                    );
+                                  }}
+                                  className="rounded border-slate-300"
+                                />
+                                {u.name}
+                              </label>
                             );
-                          }}
-                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-white"
-                          required
-                        >
-                          <option value="">Responsable...</option>
-                          {users.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={procedureSteps.length <= 1}
-                          onClick={() =>
-                            setProcedureSteps((prev) => prev.filter((_, i) => i !== index))
-                          }
-                          className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30"
-                          aria-label="Eliminar paso"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          })}
+                        </div>
                       </div>
                     ))}
                   </div>

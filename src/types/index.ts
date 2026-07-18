@@ -49,7 +49,10 @@ export interface ProcedureStep {
   groupId: string;
   title: string;
   sortOrder: number;
+  /** Responsable principal (primer asignado; compatibilidad). */
   assignedUserId: string;
+  /** Todos los responsables del paso. */
+  assignedUserIds: string[];
   isCompleted: boolean;
   completedAt?: string | null;
   completedBy?: string | null;
@@ -75,6 +78,8 @@ export interface TaskGroup {
   runDate?: string | null;
   /** open | completed */
   runStatus?: 'open' | 'completed' | string | null;
+  /** Si true, los pasos deben completarse en orden. */
+  requireStrictOrder?: boolean;
   /** Solo en listados de procedimientos. */
   stepCount?: number;
   completedStepCount?: number;

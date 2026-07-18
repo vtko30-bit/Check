@@ -4,23 +4,55 @@ import { revalidatePath } from 'next/cache';
 import { sql, QueryResultRow } from '@/lib/db';
 import { ProcedureStep } from '@/types';
 import { getSessionUser, isAdminOrEditor } from '@/lib/auth-helpers';
-import { getToggleProcedureStepPermission } from '@/lib/procedure-permissions';
+import {
+  canCompleteWithStrictOrder,
+  getToggleProcedureStepPermission,
+  normalizeAssigneeIds,
+} from '@/lib/procedure-permissions';
 import { z } from 'zod';
 
-function mapStep(row: QueryResultRow): ProcedureStep {
+function mapStep(
+  row: QueryResultRow,
+  assigneeIds: string[] = []
+): ProcedureStep {
   const r = row as Record<string, unknown>;
+  const ids =
+    assigneeIds.length > 0
+      ? assigneeIds
+      : normalizeAssigneeIds(r.assigned_user_id as string);
   return {
     id: row.id as string,
     groupId: r.group_id as string,
     title: r.title as string,
     sortOrder: Number(r.sort_order ?? 0),
-    assignedUserId: r.assigned_user_id as string,
+    assignedUserId: ids[0] || (r.assigned_user_id as string) || '',
+    assignedUserIds: ids,
     isCompleted: r.is_completed === true,
     completedAt: r.completed_at
       ? new Date(r.completed_at as string).toISOString()
       : null,
     completedBy: (r.completed_by as string) || null,
   };
+}
+
+async function loadAssigneeMap(stepIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (stepIds.length === 0) return map;
+
+  const idList = `{${stepIds.join(',')}}`;
+  const { rows } = await sql`
+    SELECT step_id, user_id
+    FROM procedure_step_assignees
+    WHERE step_id = ANY(${idList}::uuid[])
+  `;
+  for (const row of rows) {
+    const stepId = row.step_id as string;
+    const userId = row.user_id as string;
+    const list = map.get(stepId) ?? [];
+    list.push(userId);
+    map.set(stepId, list);
+  }
+  return map;
 }
 
 export async function getProcedureSteps(groupId: string): Promise<ProcedureStep[]> {
@@ -33,7 +65,8 @@ export async function getProcedureSteps(groupId: string): Promise<ProcedureStep[
       WHERE group_id = ${groupId}
       ORDER BY sort_order ASC, created_at ASC
     `;
-    return rows.map(mapStep);
+    const assigneeMap = await loadAssigneeMap(rows.map((r) => r.id as string));
+    return rows.map((row) => mapStep(row, assigneeMap.get(row.id as string) ?? []));
   } catch (error) {
     console.error('Error fetching procedure steps:', error);
     return [];
@@ -51,8 +84,10 @@ export async function toggleProcedureStep(stepId: string) {
         ps.group_id,
         ps.assigned_user_id,
         ps.is_completed,
+        ps.sort_order,
         g.is_template,
-        g.run_status
+        g.run_status,
+        g.require_strict_order
       FROM procedure_steps ps
       JOIN task_groups g ON g.id = ps.group_id
       WHERE ps.id = ${stepId}
@@ -73,14 +108,43 @@ export async function toggleProcedureStep(stepId: string) {
       return { success: false, error: 'Esta ejecución ya está cerrada.' };
     }
 
+    const { rows: assigneeRows } = await sql`
+      SELECT user_id FROM procedure_step_assignees WHERE step_id = ${stepId}
+    `;
+    const assignedUserIds =
+      assigneeRows.length > 0
+        ? assigneeRows.map((r) => r.user_id as string)
+        : normalizeAssigneeIds(step.assigned_user_id as string);
+
     const perm = getToggleProcedureStepPermission(
       { id: user.id, role: user.role },
-      step.assigned_user_id as string,
+      assignedUserIds,
       true
     );
     if (!perm.ok) return { success: false, error: perm.error };
 
     const nextCompleted = step.is_completed !== true;
+    if (nextCompleted && step.require_strict_order === true) {
+      const { rows: pendingPrev } = await sql`
+        SELECT COUNT(*)::int AS count
+        FROM procedure_steps
+        WHERE group_id = ${step.group_id as string}
+          AND sort_order < ${Number(step.sort_order)}
+          AND is_completed IS NOT TRUE
+      `;
+      if (
+        !canCompleteWithStrictOrder(
+          true,
+          Number(pendingPrev[0]?.count ?? 0) === 0
+        )
+      ) {
+        return {
+          success: false,
+          error: 'Debes completar los pasos anteriores primero (orden estricto).',
+        };
+      }
+    }
+
     if (nextCompleted) {
       await sql`
         UPDATE procedure_steps
@@ -112,20 +176,36 @@ export async function toggleProcedureStep(stepId: string) {
 const addStepSchema = z.object({
   groupId: z.string().uuid(),
   title: z.string().min(1, 'El título es obligatorio').max(500),
-  assignedUserId: z.string().uuid('Selecciona un responsable'),
+  assignedUserIds: z
+    .array(z.string().uuid())
+    .min(1, 'Selecciona al menos un responsable'),
 });
 
 export async function addProcedureStep(data: {
   groupId: string;
   title: string;
-  assignedUserId: string;
+  assignedUserIds?: string[];
+  /** @deprecated usar assignedUserIds */
+  assignedUserId?: string;
 }) {
   const user = await getSessionUser();
   if (!isAdminOrEditor(user)) {
     return { success: false, error: 'No autorizado.' };
   }
 
-  const parsed = addStepSchema.safeParse(data);
+  const assignedUserIds = normalizeAssigneeIds(
+    data.assignedUserIds?.length
+      ? data.assignedUserIds
+      : data.assignedUserId
+        ? [data.assignedUserId]
+        : []
+  );
+
+  const parsed = addStepSchema.safeParse({
+    groupId: data.groupId,
+    title: data.title,
+    assignedUserIds,
+  });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
   }
@@ -150,16 +230,26 @@ export async function addProcedureStep(data: {
       WHERE group_id = ${parsed.data.groupId}
     `;
     const nextOrder = Number(maxRows[0]?.max_order ?? -1) + 1;
+    const primary = parsed.data.assignedUserIds[0];
 
-    await sql`
+    const { rows: inserted } = await sql`
       INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id)
       VALUES (
         ${parsed.data.groupId},
         ${parsed.data.title.trim()},
         ${nextOrder},
-        ${parsed.data.assignedUserId}
+        ${primary}
       )
+      RETURNING id
     `;
+    const stepId = inserted[0]?.id as string;
+    for (const assigneeId of parsed.data.assignedUserIds) {
+      await sql`
+        INSERT INTO procedure_step_assignees (step_id, user_id)
+        VALUES (${stepId}, ${assigneeId})
+        ON CONFLICT DO NOTHING
+      `;
+    }
 
     revalidatePath(`/groups/${parsed.data.groupId}`);
     revalidatePath('/groups');
@@ -167,6 +257,33 @@ export async function addProcedureStep(data: {
   } catch (error) {
     console.error('Error adding procedure step:', error);
     return { success: false, error: 'No se pudo añadir el paso.' };
+  }
+}
+
+export async function setProcedureStrictOrder(groupId: string, requireStrictOrder: boolean) {
+  const user = await getSessionUser();
+  if (!isAdminOrEditor(user)) {
+    return { success: false, error: 'No autorizado.' };
+  }
+
+  try {
+    const { rows } = await sql`
+      SELECT id, kind, is_template FROM task_groups WHERE id = ${groupId} LIMIT 1
+    `;
+    if (!rows.length || rows[0].kind !== 'procedure' || rows[0].is_template !== true) {
+      return { success: false, error: 'Solo se puede configurar en la plantilla.' };
+    }
+
+    await sql`
+      UPDATE task_groups
+      SET require_strict_order = ${requireStrictOrder}
+      WHERE id = ${groupId}
+    `;
+    revalidatePath(`/groups/${groupId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error setting strict order:', error);
+    return { success: false, error: 'No se pudo actualizar la configuración.' };
   }
 }
 

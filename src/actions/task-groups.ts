@@ -38,6 +38,7 @@ function mapTaskGroup(row: QueryResultRow): TaskGroup {
       ? new Date(r.run_date as string).toISOString().split('T')[0]
       : null,
     runStatus: (r.run_status as string) || null,
+    requireStrictOrder: r.require_strict_order === true,
     stepCount:
       r.step_count !== undefined && r.step_count !== null
         ? Number(r.step_count)
@@ -200,10 +201,13 @@ export async function createTaskGroup(formData: FormData) {
 
 const procedureStepInputSchema = z.object({
   title: z.string().min(1).max(500),
-  assignedUserId: z.string().uuid(),
+  assignedUserIds: z
+    .array(z.string().uuid())
+    .min(1, 'Cada paso necesita al menos un responsable'),
 });
 
 const createProcedureSchema = groupSchema.extend({
+  requireStrictOrder: z.boolean().optional().default(false),
   steps: z
     .array(procedureStepInputSchema)
     .min(1, 'Añade al menos un paso al procedimiento.'),
@@ -217,7 +221,8 @@ export async function createProcedure(data: {
   supervisorUserId?: string | null;
   listType?: string;
   dueDate?: string | null;
-  steps: { title: string; assignedUserId: string }[];
+  requireStrictOrder?: boolean;
+  steps: { title: string; assignedUserIds?: string[]; assignedUserId?: string }[];
 }) {
   const session = await auth();
   const user = session?.user as { id?: string; role?: string } | undefined;
@@ -229,6 +234,20 @@ export async function createProcedure(data: {
     return { success: false, error: 'No autorizado.' };
   }
 
+  const normalizedSteps = data.steps.map((s) => ({
+    title: s.title,
+    assignedUserIds: [
+      ...new Set(
+        (s.assignedUserIds?.length
+          ? s.assignedUserIds
+          : s.assignedUserId
+            ? [s.assignedUserId]
+            : []
+        ).filter(Boolean)
+      ),
+    ],
+  }));
+
   const parsed = createProcedureSchema.safeParse({
     name: data.name,
     description: data.description ?? '',
@@ -236,7 +255,8 @@ export async function createProcedure(data: {
     supervisorUserId: data.supervisorUserId || null,
     listType: data.listType || 'one_time',
     dueDate: data.dueDate || null,
-    steps: data.steps,
+    requireStrictOrder: data.requireStrictOrder ?? false,
+    steps: normalizedSteps,
   });
 
   if (!parsed.success) {
@@ -244,8 +264,16 @@ export async function createProcedure(data: {
     return { success: false, error: first?.message ?? 'Datos inválidos' };
   }
 
-  const { name, description, color, supervisorUserId, listType, dueDate, steps } =
-    parsed.data;
+  const {
+    name,
+    description,
+    color,
+    supervisorUserId,
+    listType,
+    dueDate,
+    requireStrictOrder,
+    steps,
+  } = parsed.data;
 
   if (!dueDate) {
     return { success: false, error: 'La fecha de vencimiento es obligatoria.' };
@@ -269,9 +297,9 @@ export async function createProcedure(data: {
       const groupResult = await query<{ id: string }>(
         `INSERT INTO task_groups (
            name, description, color, created_by, supervisor_user_id,
-           list_type, due_date, kind, is_template
+           list_type, due_date, kind, is_template, require_strict_order
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', TRUE)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'procedure', TRUE, $8)
          RETURNING id`,
         [
           name,
@@ -281,6 +309,7 @@ export async function createProcedure(data: {
           supervisorUserId || null,
           listType,
           dueDate,
+          requireStrictOrder,
         ]
       );
       const id = groupResult.rows[0]?.id;
@@ -288,11 +317,23 @@ export async function createProcedure(data: {
 
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
-        await query(
+        const primary = step.assignedUserIds[0];
+        const stepResult = await query<{ id: string }>(
           `INSERT INTO procedure_steps (group_id, title, sort_order, assigned_user_id)
-           VALUES ($1, $2, $3, $4)`,
-          [id, step.title.trim(), i, step.assignedUserId]
+           VALUES ($1, $2, $3, $4)
+           RETURNING id`,
+          [id, step.title.trim(), i, primary]
         );
+        const stepId = stepResult.rows[0]?.id;
+        if (!stepId) throw new Error('No se pudo crear un paso.');
+        for (const assigneeId of step.assignedUserIds) {
+          await query(
+            `INSERT INTO procedure_step_assignees (step_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [stepId, assigneeId]
+          );
+        }
       }
       return id;
     });
