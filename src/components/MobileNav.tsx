@@ -6,9 +6,11 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare, FolderKanban } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare, FolderKanban, Home } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { ShareButton } from './ShareButton';
+
+const RG_SUITE_URL = process.env.NEXT_PUBLIC_RG_SUITE_URL || 'https://rg-suite.vercel.app';
 
 export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
@@ -47,6 +49,14 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
       </div>
       
       <div className="flex items-center gap-1">
+        <a
+          href={RG_SUITE_URL}
+          title="Volver al inicio — aplicaciones"
+          aria-label="Volver al inicio"
+          className="inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:bg-slate-100"
+        >
+          <Home className="w-5 h-5" aria-hidden />
+        </a>
         <NotificationCenter
           userId={user.id}
           highlightApprovals={user.role === 'admin'}
@@ -137,6 +147,15 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-2">
+                <a
+                  href={RG_SUITE_URL}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-sm font-medium text-slate-600 hover:bg-slate-50 w-full"
+                  title="Volver al inicio — aplicaciones"
+                >
+                  <Home className="w-5 h-5" aria-hidden />
+                  Inicio
+                </a>
                 <div className="w-full">
                   <ShareButton />
                 </div>

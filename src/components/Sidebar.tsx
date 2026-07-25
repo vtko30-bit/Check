@@ -4,9 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare, FolderKanban } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, LogOut, Settings, CheckSquare, FolderKanban, Home } from 'lucide-react';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { ShareButton } from './ShareButton';
+
+const RG_SUITE_URL = process.env.NEXT_PUBLIC_RG_SUITE_URL || 'https://rg-suite.vercel.app';
+
 export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: { 
   user: { id: string; name?: string | null; email?: string | null; image?: string | null; role?: string },
   companyLogo?: string | null,
@@ -80,6 +83,14 @@ export function Sidebar({ user, companyLogo, groupedTasksCount = 0 }: {
       </div>
 
       <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-1">
+        <a
+          href={RG_SUITE_URL}
+          title="Volver al inicio — aplicaciones"
+          className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-slate-600 hover:bg-white/50 hover:text-slate-900 w-full"
+        >
+          <Home className="w-4 h-4" aria-hidden />
+          Inicio
+        </a>
         <div className="w-full">
           <ShareButton />
         </div>
