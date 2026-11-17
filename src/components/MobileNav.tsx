@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, CheckSquare, FolderKanban, Home } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu, X, LogOut, Settings, FolderKanban, Home } from 'lucide-react';
+import { AppSwitcher } from './AppSwitcher';
 import { NotificationCenter } from './layout/NotificationCenter';
 import { ShareButton } from './ShareButton';
 
@@ -85,21 +86,16 @@ export function MobileNav({ user, companyLogo, groupedTasksCount = 0 }: {
             className="fixed inset-y-0 left-0 w-3/4 max-w-xs bg-white p-4 shadow-xl transition-transform animate-in slide-in-from-left flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-6">
-              
-              {/* --- LOGO EN MENÚ ABIERTO --- */}
-              <div className="font-bold text-xl flex items-center gap-2">
-                <div className="bg-primary/10 p-1.5 rounded-lg">
-                   <CheckSquare className="w-6 h-6 text-primary" />
-                </div>
-                <span className="text-slate-800">Check</span>
+            <div className="mb-4 flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <AppSwitcher />
               </div>
-
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar menú"
+                className="shrink-0"
               >
                 <X className="w-5 h-5" />
               </Button>
