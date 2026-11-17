@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   Boxes,
-  Building2,
   ChefHat,
+  Landmark,
   ChevronsUpDown,
   ListChecks,
   RefreshCw,
@@ -17,7 +17,7 @@ import {
 import { currentSuiteApp, SUITE_APPS } from "@/lib/suite-apps";
 
 const ICONS: Record<string, LucideIcon> = {
-  finanzas: Building2,
+  finanzas: Landmark,
   inventario: Boxes,
   recetas: ChefHat,
   caja: Wallet,
